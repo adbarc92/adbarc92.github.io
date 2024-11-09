@@ -2,8 +2,11 @@ import "./App.css";
 import { BrowserRouter, Link, NavLink, Route, Routes } from "react-router-dom";
 import Home from "./pages/Home";
 import SocialLinks from "./components/SocialLinks";
-import { Moon } from "lucide-react";
 import React from "react";
+import Projects from "./pages/Projects";
+import Blog from "./pages/Blog";
+import Contact from "./pages/Contact";
+import About from "./pages/About";
 
 function App() {
   return (
@@ -11,9 +14,10 @@ function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
-          {/* <Route path="/about" element={<About />} />
-              <Route path="/projects" element={<Projects />} />
-              <Route path="/contact" element={<Contact />} /> */}
+          <Route path="/about" element={<About />} />
+          <Route path="/projects" element={<Projects />} />
+          <Route path="/projects" element={<Blog />} />
+          <Route path="/contact" element={<Contact />} />
         </Routes>
       </Layout>
     </BrowserRouter>
@@ -62,9 +66,6 @@ const Layout = ({ children }) => {
           >
             Contact
           </NavLink>
-          <button className="p-2 hover:bg-gray-700 rounded-full transition-colors">
-            <Moon size={20} />
-          </button>
         </div>
       </nav>
 
