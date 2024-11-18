@@ -7,6 +7,7 @@ import Blog from './pages/Blog';
 import Contact from './pages/Contact';
 import About from './pages/About';
 import NavBar from './components/NavBar';
+import './App.css';
 
 function App() {
   return (
