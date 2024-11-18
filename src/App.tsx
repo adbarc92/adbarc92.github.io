@@ -2,7 +2,6 @@ import "./App.css";
 import { BrowserRouter, Link, NavLink, Route, Routes } from "react-router-dom";
 import Home from "./pages/Home";
 import SocialLinks from "./components/SocialLinks";
-import React from "react";
 import Projects from "./pages/Projects";
 import Blog from "./pages/Blog";
 import Contact from "./pages/Contact";
@@ -27,6 +26,8 @@ function App() {
 const Layout = ({ children }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-gray-100 p-8">
+      <h1 className="text-center text-3xl font-bold underline">Hello World</h1>
+
       <nav className="flex justify-between items-center mb-24">
         <Link to="/" className="flex items-center gap-4">
           <div className="text-2xl">✱</div>
