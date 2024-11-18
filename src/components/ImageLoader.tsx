@@ -2,7 +2,11 @@ import React, { useState } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
-const ImageLoader = () => {
+interface ImageLoaderProps {
+  src: string;
+}
+
+const ImageLoader = ({ src }: ImageLoaderProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -26,7 +30,7 @@ const ImageLoader = () => {
         )}
 
         <img
-          src="/api/placeholder/400/300"
+          src={src}
           alt="Example image"
           className={`w-full h-auto rounded-lg ${
             loading ? 'opacity-0' : 'opacity-100'
