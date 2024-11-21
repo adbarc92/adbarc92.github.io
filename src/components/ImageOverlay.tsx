@@ -11,21 +11,28 @@ const ImageOverlay = () => {
       title: 'Dark Castle',
       description:
         'An ominous castle perched atop the mountain, its spires reaching into the clouded sky.',
-      position: 'left-24 top-32',
+      position: 'left-48 top-48',
     },
     {
       id: 'dragon',
-      title: 'Ancient Dragon',
+      title: 'Projects',
       description:
         'A fearsome dragon with outstretched wings, silhouetted against the massive full moon.',
       position: 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
     },
     {
       id: 'knight',
-      title: 'Mystic Knight',
+      title: 'About Me',
       description:
         'A warrior wielding a glowing blue sword, ready to face the dragon.',
-      position: 'left-1/2 bottom-32',
+      position: 'left-1/2 bottom-24 -translate-x',
+    },
+    {
+      id: 'moon',
+      title: 'Projects',
+      description:
+        'A warrior wielding a glowing blue sword, ready to face the dragon.',
+      position: 'left-1/2 top-1/4 -translate-x-1/2 -translate-y-1/2',
     },
   ];
 
