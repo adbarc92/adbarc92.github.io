@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import background from '../assets/background.webp';
 
 const ImageOverlay = () => {
-  const [activeSpot, setActiveSpot] = useState(null);
+  const [activeSpot, setActiveSpot] = useState<string | null>(null);
 
   const hotspots = [
     {
@@ -11,7 +11,7 @@ const ImageOverlay = () => {
       title: 'Dark Castle',
       description:
         'An ominous castle perched atop the mountain, its spires reaching into the clouded sky.',
-      position: 'left-48 top-48',
+      position: 'left-1/4 top-1/2',
     },
     {
       id: 'dragon',
@@ -25,7 +25,7 @@ const ImageOverlay = () => {
       title: 'About Me',
       description:
         'A warrior wielding a glowing blue sword, ready to face the dragon.',
-      position: 'left-1/2 bottom-24 -translate-x',
+      position: 'left-1/2 bottom-1/4 -translate-x',
     },
     {
       id: 'moon',
@@ -37,7 +37,7 @@ const ImageOverlay = () => {
   ];
 
   return (
-    <div className="w-full max-w-4xl mx-auto relative">
+    <div className="w-full mx-auto relative">
       <Card className="bg-slate-900 text-white overflow-hidden">
         <CardContent className="p-0 relative">
           {/* Base Image */}
