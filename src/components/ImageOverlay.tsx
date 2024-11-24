@@ -8,30 +8,26 @@ const ImageOverlay = () => {
   const hotspots = [
     {
       id: 'castle',
-      title: 'Dark Castle',
-      description:
-        'An ominous castle perched atop the mountain, its spires reaching into the clouded sky.',
+      title: 'Contact Me',
+      description: 'Contact me.',
       position: 'left-1/4 top-1/2',
     },
     {
       id: 'dragon',
       title: 'Projects',
-      description:
-        'A fearsome dragon with outstretched wings, silhouetted against the massive full moon.',
+      description: 'Take a look at my projects.',
       position: 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
     },
     {
       id: 'knight',
       title: 'About Me',
-      description:
-        'A warrior wielding a glowing blue sword, ready to face the dragon.',
+      description: 'Learn all about me.',
       position: 'left-1/2 bottom-1/4 -translate-x',
     },
     {
       id: 'moon',
-      title: 'Projects',
-      description:
-        'A warrior wielding a glowing blue sword, ready to face the dragon.',
+      title: 'Blog',
+      description: 'Visit my blog.',
       position: 'left-1/2 top-1/4 -translate-x-1/2 -translate-y-1/2',
     },
   ];
