@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import background from '../assets/background.webp';
+import { useNavigate } from 'react-router-dom';
 
 const ImageOverlay = () => {
   const [activeSpot, setActiveSpot] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const hotspots = [
     {
@@ -11,24 +13,28 @@ const ImageOverlay = () => {
       title: 'Contact Me',
       description: 'Contact me.',
       position: 'left-1/4 top-1/2',
+      path: '/contact',
     },
     {
       id: 'dragon',
       title: 'Projects',
       description: 'Take a look at my projects.',
       position: 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
+      path: '/projects',
     },
     {
       id: 'knight',
       title: 'About Me',
       description: 'Learn all about me.',
       position: 'left-1/2 bottom-1/4 -translate-x',
+      path: '/about',
     },
     {
       id: 'moon',
       title: 'Blog',
       description: 'Visit my blog.',
       position: 'left-1/2 top-1/4 -translate-x-1/2 -translate-y-1/2',
+      path: '/blog',
     },
   ];
 
@@ -53,6 +59,7 @@ const ImageOverlay = () => {
                 onMouseEnter={() => setActiveSpot(spot.id)}
                 onMouseLeave={() => setActiveSpot(null)}
                 aria-label={`View info about ${spot.title}`}
+                onClick={() => navigate(spot.path)}
               >
                 <span className="block w-2 h-2 bg-white/80 rounded-full mx-auto" />
               </button>
