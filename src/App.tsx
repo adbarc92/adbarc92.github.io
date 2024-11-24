@@ -12,17 +12,17 @@ import './App.css';
 function App() {
   return (
     <BrowserRouter>
-      <Layout></Layout>
+      <Layout />
     </BrowserRouter>
   );
 }
 
 const Layout = () => {
   return (
-    <>
+    <div className="min-h-screen w-full flex flex-col">
       <NavBar />
 
-      <main className="max-w-4xl mx-auto">
+      <main className="flex-grow w-full mx-auto">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
@@ -33,7 +33,7 @@ const Layout = () => {
       </main>
 
       <SocialLinks />
-    </>
+    </div>
   );
 };
 

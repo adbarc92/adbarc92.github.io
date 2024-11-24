@@ -1,8 +1,8 @@
-import background from '../assets/background.webp';
+import ImageOverlay from '@/components/ImageOverlay';
 
 const Home = () => (
   <div>
-    <img src={background} alt="Epic background photo" />
+    <ImageOverlay />
   </div>
 );
 
