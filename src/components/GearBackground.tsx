@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createGearLayout } from "../lib/gears";
 import type { GearData } from "../lib/gears";
 
@@ -13,28 +13,30 @@ function getGearColor(index: number): { fill: string; opacity: number } {
   return { fill: "var(--color-gear)", opacity: 0.08 };
 }
 
+function buildLayout() {
+  return createGearLayout(window.innerWidth, window.innerHeight);
+}
+
+// Compute initial layout outside component to avoid ref access during render
+const initialLayout = buildLayout();
+
 export default function GearBackground() {
   const svgRef = useRef<SVGSVGElement>(null);
-  const rotationsRef = useRef<number[]>([]);
-  const gearsRef = useRef<GearData[]>([]);
-  const [gears, setGears] = useState<GearData[]>([]);
+  const rotationsRef = useRef<number[]>(initialLayout.map((g) => g.rotation));
+  const gearsRef = useRef<GearData[]>(initialLayout);
+  const [gears, setGears] = useState<GearData[]>(initialLayout);
 
-  const buildLayout = useCallback(() => {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    const layout = createGearLayout(w, h);
-    gearsRef.current = layout;
-    rotationsRef.current = layout.map((g) => g.rotation);
-    setGears(layout);
-  }, []);
-
-  // Build layout on mount and resize
+  // Rebuild layout on resize
   useEffect(() => {
-    buildLayout();
-    const onResize = () => buildLayout();
+    const onResize = () => {
+      const layout = buildLayout();
+      gearsRef.current = layout;
+      rotationsRef.current = layout.map((g) => g.rotation);
+      setGears(layout);
+    };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [buildLayout]);
+  }, []);
 
   // Animation loop — direct DOM manipulation for performance
   useEffect(() => {

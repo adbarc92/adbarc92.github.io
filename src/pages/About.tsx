@@ -1,21 +1,18 @@
 import { useEffect, useState } from 'react';
 import { marked } from 'marked';
 
+const modules = import.meta.glob<string>('/content/about.md', {
+  query: '?raw',
+  import: 'default',
+});
+const loader = Object.values(modules)[0];
+
 export default function About() {
   const [html, setHtml] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!loader);
 
   useEffect(() => {
-    const modules = import.meta.glob<string>('/content/about.md', {
-      query: '?raw',
-      import: 'default',
-    });
-
-    const loader = Object.values(modules)[0];
-    if (!loader) {
-      setLoading(false);
-      return;
-    }
+    if (!loader) return;
 
     loader().then(raw => {
       const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
