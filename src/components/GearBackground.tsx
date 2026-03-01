@@ -149,6 +149,14 @@ export default function GearBackground() {
       chainAnimData.push({ chain, meshGroups });
     }
 
+    // --- Render first frame before showing, then fade in ---
+    gearScene.composer.render();
+
+    // Fade canvas in to avoid pop-in
+    requestAnimationFrame(() => {
+      canvas.style.opacity = '1';
+    });
+
     // --- Start animation ---
     const animState = createAnimationState(
       chainAnimData,
@@ -193,6 +201,8 @@ export default function GearBackground() {
         height: '100vh',
         zIndex: 0,
         pointerEvents: 'none',
+        opacity: 0,
+        transition: 'opacity 0.8s ease-in',
       }}
     />
   );
