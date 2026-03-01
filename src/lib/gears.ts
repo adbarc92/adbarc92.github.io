@@ -26,24 +26,10 @@ export interface PlacedGear {
   module: number;
   cx: number;
   cy: number;
-  /** The original GearSpec for this gear. */
-  spec: GearSpec;
-  /** Pitch radius = module * teeth / 2. */
-  pitchRadius: number;
-  /** Outer (addendum) radius. */
-  outerRadius: number;
-  /** Inner (root/dedendum) radius. */
-  innerRadius: number;
-  /** Base circle radius. */
-  baseRadius: number;
-  /** Index of the parent gear in the chain, or null for the root gear. */
-  parentIndex: number | null;
-  /** Depth layer this gear belongs to. */
-  layer: 'back' | 'mid' | 'front';
   /** Phase offset in degrees so meshing teeth interleave correctly. */
-  phaseOffset: number;
+  phaseOffsetDeg: number;
   /** Gear ratio relative to chain root (rootSpeed * ratio = this gear's speed). */
-  gearRatio: number;
+  speedRatio: number;
   /** 1 or -1, alternates at each mesh. */
   direction: 1 | -1;
 }
@@ -54,8 +40,8 @@ export interface GearPaths {
   profile: string;
   /** Center hole circle. */
   hole: string;
-  /** Spoke window cutouts (empty string if teeth < SPOKE_TOOTH_THRESHOLD). */
-  spokes: string;
+  /** Spoke window cutouts (empty array if teeth < SPOKE_TOOTH_THRESHOLD). */
+  spokes: string[];
 }
 
 /** A chain of meshing gears sharing a common module. */
@@ -235,15 +221,14 @@ export function generateHolePath(holeRadius: number): string {
 
 /**
  * Generate spoke window cutout paths for gears with >= SPOKE_TOOTH_THRESHOLD teeth.
- * Returns a single SVG path string containing all window cutouts,
- * or an empty string for small gears.
+ * Returns an array of SVG path strings (one per window).
  */
 export function generateSpokePaths(
   teeth: number,
   mod: number,
   spokeCount?: number,
-): string {
-  if (teeth < SPOKE_TOOTH_THRESHOLD) return '';
+): string[] {
+  if (teeth < SPOKE_TOOTH_THRESHOLD) return [];
 
   const pitchR = (mod * teeth) / 2;
   const rootR = pitchR - DEDENDUM_FACTOR * mod;
@@ -252,7 +237,7 @@ export function generateSpokePaths(
   const hubR = holeRadius + (rootR - holeRadius) * 0.25;
   const rimR = rootR - mod * 0.5;
 
-  if (rimR <= hubR + mod * 0.5) return ''; // Not enough room
+  if (rimR <= hubR + mod * 0.5) return []; // Not enough room
 
   const count = spokeCount ?? Math.min(Math.max(Math.floor(teeth / 5), 4), 6);
   const windowAngle = (2 * Math.PI) / count;
@@ -288,7 +273,7 @@ export function generateSpokePaths(
     );
   }
 
-  return paths.join(' ');
+  return paths;
 }
 
 // ---- Chain layout ---------------------------------------------------------
@@ -300,14 +285,13 @@ interface ChainDef {
   rootY: number; // root gear center y
   rootSpeed: number; // deg/frame
   moduleFactor: number; // outerR of largest gear = scale * moduleFactor
-  layer: 'back' | 'mid' | 'front';
 }
 
 /**
  * Build a chain of meshing gears from a definition.
  */
 function buildChain(def: ChainDef): GearChain {
-  const { teethArray, snakeAngles, rootX, rootY, rootSpeed, moduleFactor, layer } = def;
+  const { teethArray, snakeAngles, rootX, rootY, rootSpeed, moduleFactor } = def;
 
   // Compute module: largest gear's outer radius = scale * moduleFactor
   // outerR = pitchR + m = m*N/2 + m = m*(N/2 + 1)
@@ -316,16 +300,10 @@ function buildChain(def: ChainDef): GearChain {
   const maxTeeth = Math.max(...teethArray);
   const mod = moduleFactor / (maxTeeth / 2 + ADDENDUM_FACTOR);
 
-  const alpha = DEFAULT_PRESSURE_ANGLE * DEG;
-
   const gears: PlacedGear[] = [];
 
   for (let i = 0; i < teethArray.length; i++) {
     const teeth = teethArray[i];
-    const pitchRadius = (mod * teeth) / 2;
-    const outerRadius = pitchRadius + ADDENDUM_FACTOR * mod;
-    const innerRadius = Math.max(pitchRadius - DEDENDUM_FACTOR * mod, pitchRadius * Math.cos(alpha) * 0.95);
-    const baseRadius = pitchRadius * Math.cos(alpha);
 
     if (i === 0) {
       // Root gear
@@ -334,15 +312,8 @@ function buildChain(def: ChainDef): GearChain {
         module: mod,
         cx: rootX,
         cy: rootY,
-        spec: { teeth, module: mod },
-        pitchRadius,
-        outerRadius,
-        innerRadius,
-        baseRadius,
-        parentIndex: null,
-        layer,
-        phaseOffset: 0,
-        gearRatio: 1,
+        phaseOffsetDeg: 0,
+        speedRatio: 1,
         direction: 1,
       });
       continue;
@@ -350,7 +321,7 @@ function buildChain(def: ChainDef): GearChain {
 
     const parent = gears[i - 1];
     const parentPitchR = (mod * parent.teeth) / 2;
-    const childPitchR = pitchRadius;
+    const childPitchR = (mod * teeth) / 2;
     const centerDist = parentPitchR + childPitchR;
 
     // Place child at snake angle from parent
@@ -359,8 +330,8 @@ function buildChain(def: ChainDef): GearChain {
     const cx = parent.cx + centerDist * Math.cos(angleRad);
     const cy = parent.cy + centerDist * Math.sin(angleRad);
 
-    // Gear ratio: root teeth / this teeth (cumulative)
-    const gearRatio = parent.gearRatio * (parent.teeth / teeth);
+    // Speed ratio: root teeth / this teeth (cumulative)
+    const speedRatio = parent.speedRatio * (parent.teeth / teeth);
     const direction: 1 | -1 = parent.direction === 1 ? -1 : 1;
 
     // Phase offset for proper meshing
@@ -377,7 +348,7 @@ function buildChain(def: ChainDef): GearChain {
 
     // Parent tooth index at contact
     const parentPhaseAtContact =
-      ((parentAngleAtContact - parent.phaseOffset) % parentAngularPitch + parentAngularPitch) % parentAngularPitch;
+      ((parentAngleAtContact - parent.phaseOffsetDeg) % parentAngularPitch + parentAngularPitch) % parentAngularPitch;
 
     // Child must have a gap center at the contact point
     // Gap center is offset by half a tooth pitch from a tooth center
@@ -390,15 +361,8 @@ function buildChain(def: ChainDef): GearChain {
       module: mod,
       cx,
       cy,
-      spec: { teeth, module: mod },
-      pitchRadius,
-      outerRadius,
-      innerRadius,
-      baseRadius,
-      parentIndex: i - 1,
-      layer,
-      phaseOffset: childPhaseOffset % 360,
-      gearRatio,
+      phaseOffsetDeg: childPhaseOffset % 360,
+      speedRatio,
       direction,
     });
   }
@@ -424,7 +388,6 @@ export function createGearLayout(
     rootY: viewportHeight * 0.75,
     rootSpeed: 0.08,
     moduleFactor: scale * 0.14,
-    layer: 'back',
   });
 
   const mid = buildChain({
@@ -434,7 +397,6 @@ export function createGearLayout(
     rootY: viewportHeight * 0.18,
     rootSpeed: 0.12,
     moduleFactor: scale * 0.10,
-    layer: 'mid',
   });
 
   const front = buildChain({
@@ -444,7 +406,6 @@ export function createGearLayout(
     rootY: viewportHeight * 0.65,
     rootSpeed: 0.15,
     moduleFactor: scale * 0.06,
-    layer: 'front',
   });
 
   return { back, mid, front };
