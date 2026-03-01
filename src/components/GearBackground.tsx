@@ -1,146 +1,190 @@
-import { useEffect, useRef, useState } from 'react';
-import { createGearLayout, computeGearPaths, type GearLayout, type RenderGear } from '../lib/gears';
+import { useEffect, useRef } from 'react';
+import * as THREE from 'three';
+import { createGearLayout } from '../lib/gears';
+import { initScene, resizeScene, destroyScene, type GearScene } from '../lib/gear-scene';
+import { createGearMaterials, disposeGearMaterials, type GearMaterials } from '../lib/gear-materials';
+import {
+  createStandardGearMesh,
+  createHelicalGearMesh,
+  createBevelPair,
+  createPlanetarySet,
+  type GearMeshGroup,
+  type PlanetarySet,
+} from '../lib/gear-meshes';
+import {
+  createAnimationState,
+  startAnimation,
+  stopAnimation,
+  type AnimationState,
+  type PlanetaryAnimData,
+} from '../lib/gear-animation';
 
-// ---------------------------------------------------------------------------
-// Layer styling
-// ---------------------------------------------------------------------------
-
-const LAYER_STYLES: Record<string, { filter: string; strokeWidth: number; opacityRange: [number, number] }> = {
-  back:  { filter: 'url(#gear-back)',  strokeWidth: 0.5, opacityRange: [0.06, 0.08] },
-  mid:   { filter: 'url(#gear-mid)',   strokeWidth: 1.0, opacityRange: [0.10, 0.14] },
-  front: { filter: 'url(#gear-front)', strokeWidth: 1.5, opacityRange: [0.12, 0.18] },
-};
-
-const LAYER_ORDER: Array<'back' | 'mid' | 'front'> = ['back', 'mid', 'front'];
-
-const GEAR_COLORS = [
-  'var(--color-gear-accent)',
-  'var(--color-gear-accent-2)',
-  'var(--color-gear)',
-];
-
-// ---------------------------------------------------------------------------
-// Color assignment
-// ---------------------------------------------------------------------------
-
-function getGearColor(layerIndex: number, gearIndex: number, layer: 'back' | 'mid' | 'front'): string {
-  if (layer === 'front') {
-    return gearIndex % 2 === 0 ? GEAR_COLORS[0] : GEAR_COLORS[1];
-  }
-  if (layer === 'mid' && gearIndex === 0) {
-    return GEAR_COLORS[0];
-  }
-  return GEAR_COLORS[(gearIndex + layerIndex) % 3];
-}
-
-function getGearOpacity(gearIndex: number, range: [number, number]): number {
-  return range[0] + (range[1] - range[0]) * ((Math.sin(gearIndex * 1.7) + 1) / 2);
-}
-
-// ---------------------------------------------------------------------------
-// Layout helpers
-// ---------------------------------------------------------------------------
-
-interface ChainRenderData {
-  layer: 'back' | 'mid' | 'front';
-  rootSpeed: number;
-  gears: RenderGear[];
-}
-
-function buildRenderData(layout: GearLayout): ChainRenderData[] {
-  return LAYER_ORDER.map((layer) => {
-    const chain = layout[layer];
-    return {
-      layer,
-      rootSpeed: chain.rootSpeed,
-      gears: chain.gears.map((g) => computeGearPaths(g)),
-    };
-  });
-}
-
-function buildLayout(): { layout: GearLayout; chains: ChainRenderData[] } {
-  const layout = createGearLayout(window.innerWidth, window.innerHeight);
-  return { layout, chains: buildRenderData(layout) };
-}
-
-// Compute initial layout outside component to avoid ref issues
-const initialData = buildLayout();
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+// Indices within each chain where we swap in exotic types
+// Mid layer: indices 2,5 become helical; index 4 replaced by planetary
+// Front layer: indices 1,2 replaced by bevel pair
+const HELICAL_MID_INDICES = new Set([2, 5]);
+const PLANETARY_MID_INDEX = 4;
+const BEVEL_FRONT_INDICES: [number, number] = [1, 2];
 
 export default function GearBackground() {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const rootAnglesRef = useRef<number[]>(LAYER_ORDER.map(() => 0));
-  const chainsRef = useRef<ChainRenderData[]>(initialData.chains);
-  const [chains, setChains] = useState<ChainRenderData[]>(initialData.chains);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const sceneRef = useRef<GearScene | null>(null);
+  const materialsRef = useRef<GearMaterials | null>(null);
+  const animStateRef = useRef<AnimationState | null>(null);
 
-  // Rebuild layout on debounced resize
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    const onResize = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        const data = buildLayout();
-        chainsRef.current = data.chains;
-        rootAnglesRef.current = LAYER_ORDER.map(() => 0);
-        setChains(data.chains);
-      }, 200);
-    };
-    window.addEventListener('resize', onResize);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', onResize);
-    };
-  }, []);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-  // Animation loop — direct DOM manipulation for performance
-  useEffect(() => {
-    let frameId: number;
-    const RAD_TO_DEG = 180 / Math.PI;
+    // --- Init scene ---
+    const gearScene = initScene(canvas);
+    sceneRef.current = gearScene;
 
-    const animate = () => {
-      if (!svgRef.current) {
-        frameId = requestAnimationFrame(animate);
-        return;
+    // --- Materials ---
+    const materials = createGearMaterials(gearScene.renderer);
+    materialsRef.current = materials;
+
+    // --- Layout ---
+    const layout = createGearLayout(window.innerWidth, window.innerHeight);
+
+    // Map viewport coords to scene coords (center at origin, flip Y)
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const mapX = (x: number) => x - vw / 2;
+    const mapY = (y: number) => -(y - vh / 2);
+
+    // Layer Z depths
+    const layerZ: Record<string, number> = { back: -80, mid: 0, front: 80 };
+
+    // Material per layer
+    const layerMaterial: Record<string, THREE.MeshStandardMaterial> = {
+      back: materials.darkIron,
+      mid: materials.steel,
+      front: materials.steel,
+    };
+
+    // --- Build gear meshes ---
+    const chainAnimData: { chain: typeof layout.back; meshGroups: THREE.Group[] }[] = [];
+    const bevelAnimData: { gear1Mesh: THREE.Group; gear2Mesh: THREE.Group; speed: number }[] = [];
+    const planetaryAnimData: { set: PlanetaryAnimData; sunSpeed: number }[] = [];
+
+    for (const layerName of ['back', 'mid', 'front'] as const) {
+      const chain = layout[layerName];
+      const meshGroups: THREE.Group[] = [];
+      const z = layerZ[layerName];
+      const baseMat = layerMaterial[layerName];
+
+      const skipIndices = new Set<number>();
+
+      // --- Planetary (mid layer) ---
+      if (layerName === 'mid' && PLANETARY_MID_INDEX < chain.gears.length) {
+        const gear = chain.gears[PLANETARY_MID_INDEX];
+        const pSet: PlanetarySet = createPlanetarySet(
+          mapX(gear.cx),
+          mapY(gear.cy),
+          gear.module,
+          12,
+          materials,
+        );
+        pSet.group.position.z = z;
+        gearScene.scene.add(pSet.group);
+        planetaryAnimData.push({
+          set: pSet,
+          sunSpeed: chain.rootSpeed * gear.gearRatio,
+        });
+        skipIndices.add(PLANETARY_MID_INDEX);
       }
 
-      const currentChains = chainsRef.current;
-      const angles = rootAnglesRef.current;
-
-      for (let ci = 0; ci < currentChains.length; ci++) {
-        const chain = currentChains[ci];
-        angles[ci] += chain.rootSpeed;
-
-        const chainGroup = svgRef.current.querySelector(`.chain-${ci}`);
-        if (!chainGroup) continue;
-
-        const gearGroups = chainGroup.querySelectorAll<SVGGElement>('.gear-group');
-        for (let gi = 0; gi < chain.gears.length; gi++) {
-          const group = gearGroups[gi];
-          if (!group) continue;
-          const gear = chain.gears[gi];
-          const angle =
-            angles[ci] * gear.gearRatio * gear.direction +
-            gear.phaseOffset * RAD_TO_DEG;
-          group.setAttribute(
-            'transform',
-            `translate(${gear.cx} ${gear.cy}) rotate(${angle})`,
+      // --- Bevel pair (front layer) ---
+      if (layerName === 'front') {
+        const [i1, i2] = BEVEL_FRONT_INDICES;
+        if (i1 < chain.gears.length && i2 < chain.gears.length) {
+          const g1 = chain.gears[i1];
+          const g2 = chain.gears[i2];
+          const bevel = createBevelPair(
+            g1,
+            g2,
+            materials.brass,
+            materials.steel,
+            materials,
           );
+          bevel.group.position.set(mapX(g1.cx), mapY(g1.cy), z);
+          gearScene.scene.add(bevel.group);
+          bevelAnimData.push({
+            gear1Mesh: bevel.gear1Mesh,
+            gear2Mesh: bevel.gear2Mesh,
+            speed: chain.rootSpeed * g1.gearRatio,
+          });
+          skipIndices.add(i1);
+          skipIndices.add(i2);
         }
       }
 
-      frameId = requestAnimationFrame(animate);
-    };
+      // --- Standard and helical gears ---
+      for (let i = 0; i < chain.gears.length; i++) {
+        if (skipIndices.has(i)) {
+          meshGroups.push(new THREE.Group()); // placeholder for skipped
+          continue;
+        }
 
-    frameId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frameId);
-  }, [chains]);
+        const gear = chain.gears[i];
+        const isHelical = layerName === 'mid' && HELICAL_MID_INDICES.has(i);
+        const isAccent =
+          (layerName === 'front' && i % 2 === 0) ||
+          (layerName === 'mid' && i === 0);
+        const mat = isAccent ? materials.brass : baseMat;
+
+        let gearMesh: GearMeshGroup;
+        if (isHelical) {
+          gearMesh = createHelicalGearMesh(gear, mat, materials);
+        } else {
+          gearMesh = createStandardGearMesh(gear, mat, materials);
+        }
+
+        gearMesh.group.position.set(mapX(gear.cx), mapY(gear.cy), z);
+        gearScene.scene.add(gearMesh.group);
+        meshGroups.push(gearMesh.group);
+      }
+
+      chainAnimData.push({ chain, meshGroups });
+    }
+
+    // --- Start animation ---
+    const animState = createAnimationState(
+      chainAnimData,
+      bevelAnimData,
+      planetaryAnimData,
+    );
+    animStateRef.current = animState;
+    startAnimation(gearScene, animState);
+
+    // --- Resize handler ---
+    let resizeTimer: ReturnType<typeof setTimeout>;
+    const onResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        resizeScene(gearScene, window.innerWidth, window.innerHeight);
+      }, 200);
+    };
+    window.addEventListener('resize', onResize);
+
+    // --- Cleanup ---
+    return () => {
+      window.removeEventListener('resize', onResize);
+      clearTimeout(resizeTimer);
+      if (animStateRef.current) {
+        stopAnimation(gearScene, animStateRef.current);
+      }
+      if (materialsRef.current) {
+        disposeGearMaterials(materialsRef.current);
+      }
+      destroyScene(gearScene);
+    };
+  }, []);
 
   return (
-    <svg
-      ref={svgRef}
+    <canvas
+      ref={canvasRef}
       style={{
         position: 'fixed',
         top: 0,
@@ -150,81 +194,6 @@ export default function GearBackground() {
         zIndex: 0,
         pointerEvents: 'none',
       }}
-    >
-      <defs>
-        {/* Back layer: atmospheric blur */}
-        <filter id="gear-back" x="-10%" y="-10%" width="120%" height="120%">
-          <feGaussianBlur stdDeviation="1.5" />
-        </filter>
-
-        {/* Mid layer: subtle blur + specular lighting */}
-        <filter id="gear-mid" x="-10%" y="-10%" width="120%" height="120%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="0.5" result="blurred" />
-          <feSpecularLighting
-            in="blurred"
-            result="specular"
-            specularExponent="20"
-            surfaceScale="2"
-            lightingColor="white"
-          >
-            <fePointLight x="-5000" y="-5000" z="10000" />
-          </feSpecularLighting>
-          <feComposite in="specular" in2="blurred" operator="in" result="specClipped" />
-          <feComposite in="blurred" in2="specClipped" operator="arithmetic" k1="0" k2="1" k3="0.3" k4="0" />
-        </filter>
-
-        {/* Front layer: no blur, stronger specular + drop shadow */}
-        <filter id="gear-front" x="-10%" y="-10%" width="120%" height="120%">
-          <feSpecularLighting
-            in="SourceGraphic"
-            result="specular"
-            specularExponent="30"
-            surfaceScale="3"
-            lightingColor="white"
-          >
-            <fePointLight x="-5000" y="-5000" z="10000" />
-          </feSpecularLighting>
-          <feComposite in="specular" in2="SourceGraphic" operator="in" result="specClipped" />
-          <feComposite in="SourceGraphic" in2="specClipped" operator="arithmetic" k1="0" k2="1" k3="0.3" k4="0" result="lit" />
-          <feDropShadow dx="1" dy="1" stdDeviation="2" floodOpacity="0.3" />
-        </filter>
-      </defs>
-
-      {chains.map((chain, ci) => {
-        const layerStyle = LAYER_STYLES[chain.layer];
-        return (
-          <g key={ci} className={`chain-${ci}`} filter={layerStyle.filter}>
-            {chain.gears.map((rg, gi) => {
-              const color = getGearColor(ci, gi, chain.layer);
-              const opacity = getGearOpacity(gi, layerStyle.opacityRange);
-              return (
-                <g key={gi} className="gear-group">
-                  <path
-                    d={rg.paths.profile}
-                    fill={color}
-                    opacity={opacity}
-                    stroke="var(--color-gear-stroke)"
-                    strokeWidth={layerStyle.strokeWidth}
-                  />
-                  {rg.paths.spokes && (
-                    <path
-                      d={rg.paths.spokes}
-                      fill="var(--color-bg)"
-                      opacity={opacity * 0.9}
-                    />
-                  )}
-                  <path
-                    d={rg.paths.hole}
-                    fill="var(--color-bg)"
-                    stroke="var(--color-gear-stroke)"
-                    strokeWidth={layerStyle.strokeWidth}
-                  />
-                </g>
-              );
-            })}
-          </g>
-        );
-      })}
-    </svg>
+    />
   );
 }
