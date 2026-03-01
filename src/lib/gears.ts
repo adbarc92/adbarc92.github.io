@@ -216,6 +216,138 @@ export function generateInvoluteGearPath(
   return segments.join(" ");
 }
 
+// ---- Profile points for Three.js ------------------------------------------
+
+/**
+ * Interpolate points along a circular arc from angle a0 to a1 at radius r.
+ * Returns `steps` intermediate points (excluding endpoints).
+ */
+function arcPoints(
+  r: number,
+  a0: number,
+  a1: number,
+  steps: number,
+): [number, number][] {
+  const pts: [number, number][] = [];
+  for (let s = 1; s <= steps; s++) {
+    const a = a0 + (a1 - a0) * (s / (steps + 1));
+    pts.push([r * Math.cos(a), r * Math.sin(a)]);
+  }
+  return pts;
+}
+
+/**
+ * Return the gear involute profile as an array of [x, y] coordinate pairs
+ * forming a closed polygon suitable for `new THREE.Shape()`.
+ *
+ * The points trace the full gear outline at origin (0, 0), going around the
+ * gear in order with interpolated tip-arc and root-arc segments for smoothness.
+ *
+ * @param teeth - Number of teeth (N)
+ * @param mod - Module (m)
+ * @param pressureAngleDeg - Pressure angle in degrees (default 20)
+ */
+export function getInvoluteProfilePoints(
+  teeth: number,
+  mod: number,
+  pressureAngleDeg: number = DEFAULT_PRESSURE_ANGLE,
+): [number, number][] {
+  const alpha = pressureAngleDeg * DEG;
+  const pitchR = (mod * teeth) / 2;
+  const baseR = pitchR * Math.cos(alpha);
+  const outerR = pitchR + ADDENDUM_FACTOR * mod;
+  const rootR = Math.max(pitchR - DEDENDUM_FACTOR * mod, baseR * 0.95);
+
+  // Half-tooth angular width at the pitch circle
+  const invAlpha = Math.tan(alpha) - alpha; // inv(pressure angle)
+  const halfToothAngle = Math.PI / (2 * teeth) + invAlpha;
+
+  // Roll angle limits
+  const tRoot =
+    baseR > rootR ? 0 : involuteAngleAtRadius(baseR, Math.max(rootR, baseR));
+  const tOuter = involuteAngleAtRadius(baseR, outerR);
+
+  const toothAngle = (2 * Math.PI) / teeth;
+  const effectiveRootR = Math.max(rootR, baseR);
+
+  const TIP_ARC_STEPS = 2; // interpolation points per tip arc
+  const ROOT_ARC_STEPS = 1; // interpolation points per root arc
+
+  const points: [number, number][] = [];
+
+  for (let i = 0; i < teeth; i++) {
+    const toothCenterAngle = i * toothAngle;
+
+    // --- Right flank (involute curve going outward) ---
+    const rightFlankPoints: [number, number][] = [];
+    for (let s = 0; s <= INVOLUTE_SEGMENTS; s++) {
+      const t = tRoot + (tOuter - tRoot) * (s / INVOLUTE_SEGMENTS);
+      const [ix, iy] = involutePoint(baseR, t);
+      const r = Math.sqrt(ix * ix + iy * iy);
+      const ptAngle = Math.atan2(iy, ix);
+      const finalAngle =
+        ptAngle + toothCenterAngle + halfToothAngle - involutePolarAngle(t);
+      rightFlankPoints.push([r * Math.cos(finalAngle), r * Math.sin(finalAngle)]);
+    }
+
+    // --- Left flank (mirror of right, going inward from outer to root) ---
+    const leftFlankPoints: [number, number][] = [];
+    for (let s = INVOLUTE_SEGMENTS; s >= 0; s--) {
+      const t = tRoot + (tOuter - tRoot) * (s / INVOLUTE_SEGMENTS);
+      const [ix, iy] = involutePoint(baseR, t);
+      const r = Math.sqrt(ix * ix + iy * iy);
+      const ptAngle = Math.atan2(iy, ix);
+      const finalAngle =
+        -ptAngle + toothCenterAngle - halfToothAngle + involutePolarAngle(t);
+      leftFlankPoints.push([r * Math.cos(finalAngle), r * Math.sin(finalAngle)]);
+    }
+
+    // Root arc from previous tooth's left-flank end to this tooth's right-flank start
+    if (i > 0) {
+      const prev = points[points.length - 1];
+      const next = rightFlankPoints[0];
+      const a0 = Math.atan2(prev[1], prev[0]);
+      const a1 = Math.atan2(next[1], next[0]);
+      // Ensure we sweep the short way around (clockwise for standard winding)
+      let da = a1 - a0;
+      if (da > Math.PI) da -= 2 * Math.PI;
+      if (da < -Math.PI) da += 2 * Math.PI;
+      const interpPts = arcPoints(effectiveRootR, a0, a0 + da, ROOT_ARC_STEPS);
+      points.push(...interpPts);
+    }
+
+    // Right flank points
+    points.push(...rightFlankPoints);
+
+    // Tip arc from right-flank top to left-flank top
+    const tipRight = rightFlankPoints[rightFlankPoints.length - 1];
+    const tipLeft = leftFlankPoints[0];
+    const tipA0 = Math.atan2(tipRight[1], tipRight[0]);
+    const tipA1 = Math.atan2(tipLeft[1], tipLeft[0]);
+    let tipDa = tipA1 - tipA0;
+    if (tipDa > Math.PI) tipDa -= 2 * Math.PI;
+    if (tipDa < -Math.PI) tipDa += 2 * Math.PI;
+    const tipInterp = arcPoints(outerR, tipA0, tipA0 + tipDa, TIP_ARC_STEPS);
+    points.push(...tipInterp);
+
+    // Left flank points
+    points.push(...leftFlankPoints);
+  }
+
+  // Closing root arc: from last tooth's left-flank end back to first point
+  const last = points[points.length - 1];
+  const first = points[0];
+  const ca0 = Math.atan2(last[1], last[0]);
+  const ca1 = Math.atan2(first[1], first[0]);
+  let cda = ca1 - ca0;
+  if (cda > Math.PI) cda -= 2 * Math.PI;
+  if (cda < -Math.PI) cda += 2 * Math.PI;
+  const closingArc = arcPoints(effectiveRootR, ca0, ca0 + cda, ROOT_ARC_STEPS);
+  points.push(...closingArc);
+
+  return points;
+}
+
 // ---- Hole path ------------------------------------------------------------
 
 /**
