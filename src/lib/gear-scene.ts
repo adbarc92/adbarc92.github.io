@@ -82,11 +82,11 @@ export function initScene(canvas: HTMLCanvasElement): GearScene {
   );
   composer.addPass(bloomPass);
 
-  // Depth of field
+  // Depth of field — very subtle, only blurs the far back layer slightly
   const bokehPass = new BokehPass(scene, camera, {
     focus: sceneRadius * 2.5,
-    aperture: 0.002,
-    maxblur: 0.005,
+    aperture: 0.0004,
+    maxblur: 0.001,
   });
   composer.addPass(bokehPass);
 
