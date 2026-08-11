@@ -69,6 +69,11 @@ const eidosDocs = readCollection<EidosFrontmatter>('eidos', slugFromOrderedPath)
   (a, b) => a.frontmatter.order - b.frontmatter.order
 );
 
+const ABOUT_PATH = join(CONTENT, 'about.md');
+const aboutBody = existsSync(ABOUT_PATH)
+  ? parseMarkdown(readFileSync(ABOUT_PATH, 'utf8')).html
+  : '';
+
 const pages: Page[] = [
   { route: '/', title: pageTitle(), description: SITE.description, body: '', type: 'website' },
   {
@@ -89,7 +94,7 @@ const pages: Page[] = [
     route: '/about',
     title: pageTitle('About'),
     description: SITE.description,
-    body: '',
+    body: aboutBody,
     type: 'website',
   },
   {
