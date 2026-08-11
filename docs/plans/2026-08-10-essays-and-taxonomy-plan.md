@@ -619,12 +619,65 @@ git commit -m "content: publish Eidos essay"
 
 **Files:**
 - Create: `src/components/DraftBadge.tsx`
+- Create: `src/lib/dates.ts`
 - Modify: `src/components/BlogCard.tsx`
 - Modify: `src/pages/BlogPost.tsx`
+- Modify: `src/components/ProjectCard.tsx`
+- Modify: `src/pages/ProjectDetail.tsx`
 
 **Interfaces:**
 - Consumes: `BlogFrontmatter.draft` from Task 2.
-- Produces: `<DraftBadge draft={…} />`, which renders nothing outside the dev server; and tag links of the form `/blog?tag=<tag>`, which Task 6's filter reads.
+- Produces: `<DraftBadge draft={…} />`, which renders nothing outside the dev server; `formatDate(value: string | Date): string`; and tag links of the form `/blog?tag=<tag>`, which Task 6's filter reads.
+
+- [ ] **Step 0: Fix the off-by-one date bug**
+
+Found by rendering the built site: a post dated `2026-08-10` displays as "August 9, 2026", and `2026-02-27` displays as "February 26". Every date on the site is wrong by a day for any reader west of Greenwich, including the essay's publication date.
+
+The cause is that `new Date('2026-08-10')` is parsed as UTC midnight, and `toLocaleDateString()` then renders it in the viewer's local zone, landing on the previous evening. The frontmatter values are calendar days, not instants, so they must be formatted in UTC.
+
+Create `src/lib/dates.ts`:
+
+```ts
+/**
+ * Frontmatter dates are calendar days. `new Date('2026-08-10')` parses to UTC
+ * midnight, so formatting in local time renders the previous day anywhere west
+ * of Greenwich. Formatting in UTC is what keeps the printed date the authored one.
+ *
+ * The parameter accepts Date because the YAML parser resolves unquoted
+ * `2026-08-10` to a Date, not a string, despite the frontmatter types.
+ */
+export function formatDate(value: string | Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).format(value instanceof Date ? value : new Date(value));
+}
+```
+
+Then replace the inline date formatting in all four components that render one. Each currently reads roughly:
+
+```tsx
+        {new Date(frontmatter.date).toLocaleDateString('en-US', {
+          year: 'numeric', month: 'long', day: 'numeric',
+        })}
+```
+
+and becomes:
+
+```tsx
+        {formatDate(frontmatter.date)}
+```
+
+The four files are `src/components/BlogCard.tsx`, `src/pages/BlogPost.tsx` (which uses `post.frontmatter.date`), `src/components/ProjectCard.tsx`, and `src/pages/ProjectDetail.tsx` (which uses `project.frontmatter.date`). Add `import { formatDate } from '../lib/dates';` to each — the path is `'../lib/dates'` from both `components/` and `pages/`. Change nothing else in the two project files.
+
+Commit this separately, before the rest of the task:
+
+```bash
+git add src/lib/dates.ts src/components/BlogCard.tsx src/pages/BlogPost.tsx src/components/ProjectCard.tsx src/pages/ProjectDetail.tsx
+git commit -m "fix: format frontmatter dates in UTC so they render the authored day"
+```
 
 Tags become links **on the post page only**. `BlogCard`'s entire card is already a `<Link>`, and an anchor inside an anchor is invalid HTML that React will render but browsers handle inconsistently. Card tags stay as static spans; the chip row from Task 6 is how filtering is discovered from the index.
 
