@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { BlogFrontmatter } from '../lib/content';
+import { formatDate } from '../lib/dates';
 
 interface Props {
   slug: string;
@@ -29,9 +30,7 @@ export default function BlogCard({ slug, frontmatter }: Props) {
       }}
     >
       <time style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', letterSpacing: '0.04em' }}>
-        {new Date(frontmatter.date).toLocaleDateString('en-US', {
-          year: 'numeric', month: 'long', day: 'numeric',
-        })}
+        {formatDate(frontmatter.date)}
       </time>
       <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: '0.4rem 0', color: 'var(--color-text)' }}>
         {frontmatter.title}

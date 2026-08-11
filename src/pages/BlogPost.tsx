@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { loadBlogPost, type ContentEntry, type BlogFrontmatter } from '../lib/content';
+import { formatDate } from '../lib/dates';
 
 export default function BlogPost() {
   const { slug } = useParams<{ slug: string }>();
@@ -40,9 +41,7 @@ export default function BlogPost() {
         &larr; Back to Blog
       </Link>
       <time style={{ display: 'block', fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>
-        {new Date(post.frontmatter.date).toLocaleDateString('en-US', {
-          year: 'numeric', month: 'long', day: 'numeric',
-        })}
+        {formatDate(post.frontmatter.date)}
       </time>
       <h1 style={{ fontSize: '2.2rem', fontWeight: 700, marginBottom: '0.75rem' }}>
         {post.frontmatter.title}
