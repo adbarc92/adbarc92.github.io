@@ -63,7 +63,7 @@ export default function BlogPost() {
         </div>
       )}
       <article
-        style={{ lineHeight: 1.8, color: 'var(--color-text)' }}
+        className="prose"
         dangerouslySetInnerHTML={{ __html: post.html }}
       />
     </div>

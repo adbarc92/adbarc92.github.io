@@ -77,7 +77,7 @@ export default function ProjectDetail() {
         </div>
       )}
       <article
-        style={{ lineHeight: 1.8, color: 'var(--color-text)' }}
+        className="prose"
         dangerouslySetInnerHTML={{ __html: html }}
       />
     </div>
