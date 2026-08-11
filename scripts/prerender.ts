@@ -51,11 +51,13 @@ function readCollection<T>(dir: string, slugFn: (path: string) => string) {
     .map(file => {
       const raw = readFileSync(join(full, file), 'utf8');
       const { frontmatter, html } = parseMarkdown<T>(raw);
-      return { slug: slugFn(file), frontmatter, html };
+      return { slug: slugFn(file), file, frontmatter, html };
     });
 }
 
-const posts = readCollection<BlogFrontmatter>('blog', slugFromDatedPath)
+const blogEntries = readCollection<BlogFrontmatter>('blog', slugFromDatedPath);
+
+const posts = blogEntries
   .filter(p => !p.frontmatter.draft)
   .sort(
     (a, b) => new Date(b.frontmatter.date).getTime() - new Date(a.frontmatter.date).getTime()
@@ -216,5 +218,62 @@ ${pages.map(p => `  <url><loc>${escapeXml(SITE.origin + p.route)}</loc></url>`).
 `,
   'utf8'
 );
+
+// --- Build-time validation --------------------------------------------------
+// There is no test runner, so a malformed content file must fail the build
+// here rather than ship a page that silently renders blank. Runs after every
+// file above has been written; a failure below still fails `npm run build`.
+
+function assertField(condition: unknown, file: string, message: string): void {
+  if (!condition) {
+    throw new Error(`prerender: ${file}: ${message}`);
+  }
+}
+
+// 1. The shell must have actually contained the injection point, or every
+// `.replace('<div id="root"></div>', ...)` above silently no-opped and every
+// page just shipped the bare shell.
+assertField(
+  shell.includes('<div id="root"></div>'),
+  'dist/index.html',
+  'shell is missing \'<div id="root"></div>\' — body injection silently no-opped for every page'
+);
+
+// 2. Every generated page needs a real title and description.
+for (const page of pages) {
+  assertField(page.title.trim(), page.route, 'generated page has an empty or missing title');
+  assertField(
+    page.description.trim(),
+    page.route,
+    'generated page has an empty or missing description'
+  );
+}
+
+// 3. Every blog post (including drafts) needs complete, valid frontmatter.
+for (const post of blogEntries) {
+  const fm = post.frontmatter;
+  assertField(fm.date, post.file, 'missing "date" in frontmatter');
+  assertField(
+    fm.date && !Number.isNaN(new Date(fm.date).getTime()),
+    post.file,
+    `"date" in frontmatter is not a valid date: ${JSON.stringify(fm.date)}`
+  );
+  assertField(fm.excerpt, post.file, 'missing "excerpt" in frontmatter');
+  assertField(fm.tags, post.file, 'missing "tags" in frontmatter');
+  assertField(fm.category, post.file, 'missing "category" in frontmatter');
+}
+
+// 4. Every Eidos document needs complete frontmatter.
+for (const doc of eidosDocs) {
+  const fm = doc.frontmatter;
+  assertField(fm.title, doc.file, 'missing "title" in frontmatter');
+  assertField(
+    typeof fm.order === 'number' && !Number.isNaN(fm.order),
+    doc.file,
+    'missing or invalid "order" in frontmatter'
+  );
+  assertField(fm.version, doc.file, 'missing "version" in frontmatter');
+  assertField(fm.summary, doc.file, 'missing "summary" in frontmatter');
+}
 
 console.log(`prerender: wrote ${count} pages + 404.html, rss.xml, sitemap.xml`);
