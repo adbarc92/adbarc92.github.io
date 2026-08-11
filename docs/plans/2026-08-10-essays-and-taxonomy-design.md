@@ -127,8 +127,15 @@ Putting it in the URL rather than component state makes a filtered view shareabl
 survives a reload, which is the whole reason to prefer it. The two parameters compose:
 a category and a tag together narrow to the intersection.
 
-Tags rendered on `BlogCard` and `BlogPost` become links into `/blog?tag=<tag>`. When a
-filter matches nothing, the page says so and offers a link back to the unfiltered feed.
+Tags rendered on `BlogPost` become links into `/blog?tag=<tag>`. On `BlogCard` they do
+not: the card itself is already a react-router `<Link>` to the post, and nesting
+interactive content inside an anchor is invalid HTML, so the tag `<span>`s on the card
+stay non-interactive labels. This is a deliberate deviation from the original plan of
+linking tags on both components. It costs nothing in practice — the category chip row
+above the feed is the reachable path into a filtered view from the index — and the tag
+link on `BlogPost` still lets a reader jump from an individual post into `/blog?tag=`.
+When a filter matches nothing, the page says so and offers a link back to the
+unfiltered feed.
 
 ## Component 4 — The /eidos section
 
