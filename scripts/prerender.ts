@@ -164,4 +164,53 @@ for (const page of pages) {
 // not claim another page's canonical or description.
 writeFileSync(join(DIST, '404.html'), shell, 'utf8');
 
-console.log(`prerender: wrote ${count} pages + 404.html`);
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+const rssItems = posts
+  .map(p => {
+    const url = `${SITE.origin}/blog/${p.slug}`;
+    return `    <item>
+      <title>${escapeXml(p.frontmatter.title)}</title>
+      <link>${escapeXml(url)}</link>
+      <guid isPermaLink="true">${escapeXml(url)}</guid>
+      <pubDate>${new Date(p.frontmatter.date).toUTCString()}</pubDate>
+      <description>${escapeXml(p.frontmatter.excerpt)}</description>
+    </item>`;
+  })
+  .join('\n');
+
+writeFileSync(
+  join(DIST, 'rss.xml'),
+  `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>${escapeXml(SITE.title)}</title>
+    <link>${SITE.origin}/blog</link>
+    <description>${escapeXml(SITE.description)}</description>
+    <language>en</language>
+    <atom:link href="${SITE.origin}/rss.xml" rel="self" type="application/rss+xml" />
+${rssItems}
+  </channel>
+</rss>
+`,
+  'utf8'
+);
+
+writeFileSync(
+  join(DIST, 'sitemap.xml'),
+  `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${pages.map(p => `  <url><loc>${escapeXml(SITE.origin + p.route)}</loc></url>`).join('\n')}
+</urlset>
+`,
+  'utf8'
+);
+
+console.log(`prerender: wrote ${count} pages + 404.html, rss.xml, sitemap.xml`);
