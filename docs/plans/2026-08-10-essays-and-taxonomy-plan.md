@@ -30,6 +30,8 @@
 | File | Responsibility |
 |---|---|
 | `src/lib/markdown.ts` | Pure markdown parsing: `marked`/`highlight.js` config, frontmatter split, slug rules. Importable from both Vite and plain Node. |
+| `src/lib/frontmatter.ts` | The frontmatter shapes and the category taxonomy. Pure types plus one const, shared by the app and the build script so neither redeclares them. |
+| `src/components/DraftBadge.tsx` | The dev-only DRAFT marker, used by both the card and the post page. |
 | `src/lib/site.ts` | Site-wide constants (origin, title, author, default description and social image), shared by the app and the build script. |
 | `src/components/CategoryFilter.tsx` | The chip row on the writing index. Presentational; owns no state. |
 | `src/pages/Eidos.tsx` | Specification index page. |
@@ -62,11 +64,14 @@ A pure refactor. Behaviour must not change: the site renders identically before 
 
 **Files:**
 - Create: `src/lib/markdown.ts`
+- Create: `src/lib/frontmatter.ts`
 - Modify: `src/lib/content.ts` (whole file)
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `parseMarkdown<T>(raw: string): { frontmatter: T; html: string }`, `slugFromDatedPath(path: string): string`, `slugFromOrderedPath(path: string): string` from `src/lib/markdown.ts`. `src/lib/content.ts` keeps its four existing exported functions and their exact signatures, plus the `ContentEntry<T>`, `BlogFrontmatter`, and `ProjectFrontmatter` types.
+- Produces: `parseMarkdown<T>(raw: string): { frontmatter: T; html: string }`, `slugFromDatedPath(path: string): string`, `slugFromOrderedPath(path: string): string` from `src/lib/markdown.ts`; `BlogFrontmatter` and `ProjectFrontmatter` from `src/lib/frontmatter.ts`. `src/lib/content.ts` keeps its four existing exported functions and their exact signatures and the `ContentEntry<T>` type, and re-exports the frontmatter types so every page's existing import keeps working.
+
+Two pure modules rather than one: `markdown.ts` is behaviour (it configures `marked` on import), `frontmatter.ts` is shape. Task 11's Node script needs the shapes without the parser's side effects, and neither may contain `import.meta`.
 
 - [ ] **Step 1: Create `src/lib/markdown.ts`**
 
@@ -113,15 +118,15 @@ export function slugFromOrderedPath(path: string): string {
 }
 ```
 
-- [ ] **Step 2: Rewrite `src/lib/content.ts` against it**
+- [ ] **Step 2: Create `src/lib/frontmatter.ts`**
 
-Replace the entire file. The four exported functions keep their names, signatures, and behaviour — only their internals move.
+Moved verbatim out of `content.ts`. Task 2 extends these, Task 8 adds a third, and Task 11 imports them instead of redeclaring them.
 
 ```ts
-import {
-  parseMarkdown,
-  slugFromDatedPath,
-} from './markdown';
+/**
+ * The shapes of our content frontmatter. Pure types — shared by the app and by
+ * scripts/prerender.ts, so keep this free of import.meta and of side effects.
+ */
 
 export interface BlogFrontmatter {
   title: string;
@@ -141,6 +146,20 @@ export interface ProjectFrontmatter {
     live?: string;
   };
 }
+```
+
+- [ ] **Step 3: Rewrite `src/lib/content.ts` against both**
+
+Replace the entire file. The four exported functions keep their names, signatures, and behaviour — only their internals move. The `export type` line matters: pages import `BlogFrontmatter` from `./content` today, and this keeps that true.
+
+```ts
+import {
+  parseMarkdown,
+  slugFromDatedPath,
+} from './markdown';
+import type { BlogFrontmatter, ProjectFrontmatter } from './frontmatter';
+
+export type { BlogFrontmatter, ProjectFrontmatter } from './frontmatter';
 
 export interface ContentEntry<T> {
   slug: string;
@@ -212,21 +231,21 @@ export async function loadProject(slug: string): Promise<ContentEntry<ProjectFro
 }
 ```
 
-- [ ] **Step 3: Verify the build and lint pass**
+- [ ] **Step 4: Verify the build and lint pass**
 
 Run: `npm run build && npm run lint`
 Expected: both succeed. A failure here is almost certainly an unused import left behind in `content.ts` (`noUnusedLocals` is on) — `slugFromOrderedPath` is deliberately not imported yet and must not be.
 
-- [ ] **Step 4: Verify the site is unchanged**
+- [ ] **Step 5: Verify the site is unchanged**
 
 Run: `npm run dev`, then open `http://localhost:5173/blog`, click through to the Hello World post, and open `/projects`.
-Expected: identical to before — post list renders, post body renders with its code block highlighted, project list renders.
+Expected: identical to before — post list renders, post body renders with its code block highlighted, project list renders. No page imports were changed, so any import error means the re-export in Step 3 is missing.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/lib/markdown.ts src/lib/content.ts
-git commit -m "refactor: extract pure markdown parsing from content loaders"
+git add src/lib/markdown.ts src/lib/frontmatter.ts src/lib/content.ts
+git commit -m "refactor: extract pure markdown parsing and frontmatter shapes"
 ```
 
 ---
@@ -234,14 +253,15 @@ git commit -m "refactor: extract pure markdown parsing from content loaders"
 ### Task 2: Category taxonomy and draft state
 
 **Files:**
+- Modify: `src/lib/frontmatter.ts`
 - Modify: `src/lib/content.ts`
 - Modify: `content/blog/2026-02-27-hello-world.md`
 
 **Interfaces:**
 - Consumes: `parseMarkdown`, `slugFromDatedPath` from Task 1.
-- Produces: `type Category = 'software' | 'fiction' | 'politics' | 'meta'`; `CATEGORIES: readonly { id: Category; label: string }[]`; `BlogFrontmatter` extended with `category: Category` and `draft?: boolean`. `loadBlogPosts()` and `loadBlogPost()` now hide drafts in production builds.
+- Produces: `type Category = 'software' | 'fiction' | 'politics' | 'meta'`; `CATEGORIES: readonly { id: Category; label: string }[]`; `BlogFrontmatter` extended with `category: Category` and `draft?: boolean` — all in `src/lib/frontmatter.ts`, all re-exported from `src/lib/content.ts`. `loadBlogPosts()` and `loadBlogPost()` now hide drafts in production builds.
 
-- [ ] **Step 1: Add the category types to `src/lib/content.ts`**
+- [ ] **Step 1: Add the category taxonomy to `src/lib/frontmatter.ts`**
 
 Insert above the `BlogFrontmatter` interface:
 
@@ -257,7 +277,7 @@ export const CATEGORIES: readonly { id: Category; label: string }[] = [
 ];
 ```
 
-- [ ] **Step 2: Extend `BlogFrontmatter`**
+- [ ] **Step 2: Extend `BlogFrontmatter`, in the same file**
 
 ```ts
 export interface BlogFrontmatter {
@@ -270,7 +290,16 @@ export interface BlogFrontmatter {
 }
 ```
 
-- [ ] **Step 3: Filter drafts in the two blog loaders**
+- [ ] **Step 3: Re-export both from `src/lib/content.ts`**
+
+`Category` is a type and `CATEGORIES` is a value, so they need different export forms. Add beside the existing re-export line:
+
+```ts
+export type { Category } from './frontmatter';
+export { CATEGORIES } from './frontmatter';
+```
+
+- [ ] **Step 4: Filter drafts in the two blog loaders**
 
 Add above `loadBlogPosts`:
 
@@ -299,7 +328,7 @@ export async function loadBlogPost(slug: string): Promise<ContentEntry<BlogFront
 }
 ```
 
-- [ ] **Step 4: Backfill the existing post**
+- [ ] **Step 5: Backfill the existing post**
 
 `category` is required, so the one existing post needs it. Replace the frontmatter block and remove the duplicate `# Hello World` heading — the page already renders `frontmatter.title` as the `<h1>`.
 
@@ -319,7 +348,7 @@ eventually game design.
 
 Leave the rest of the file (from `## What's Coming` onward) exactly as it is.
 
-- [ ] **Step 5: Verify**
+- [ ] **Step 6: Verify**
 
 Run: `npm run build && npm run lint`
 Expected: both pass.
@@ -345,10 +374,10 @@ Run `npm run dev` and confirm "Draft Probe" appears at `/blog`. Then run `npm ru
 
 Keep this file — Tasks 5 and 11 use it, and Task 13 deletes it.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/lib/content.ts content/blog/2026-02-27-hello-world.md content/blog/2026-08-10-draft-probe.md
+git add src/lib/frontmatter.ts src/lib/content.ts content/blog/2026-02-27-hello-world.md content/blog/2026-08-10-draft-probe.md
 git commit -m "feat: add category taxonomy and draft state to blog content"
 ```
 
@@ -589,57 +618,61 @@ git commit -m "content: publish Eidos essay"
 ### Task 5: Draft badge and clickable tags
 
 **Files:**
+- Create: `src/components/DraftBadge.tsx`
 - Modify: `src/components/BlogCard.tsx`
 - Modify: `src/pages/BlogPost.tsx`
 
 **Interfaces:**
 - Consumes: `BlogFrontmatter.draft` from Task 2.
-- Produces: tag links of the form `/blog?tag=<tag>`, which Task 6's filter reads.
+- Produces: `<DraftBadge draft={…} />`, which renders nothing outside the dev server; and tag links of the form `/blog?tag=<tag>`, which Task 6's filter reads.
 
 Tags become links **on the post page only**. `BlogCard`'s entire card is already a `<Link>`, and an anchor inside an anchor is invalid HTML that React will render but browsers handle inconsistently. Card tags stay as static spans; the chip row from Task 6 is how filtering is discovered from the index.
 
-- [ ] **Step 1: Add the draft badge to `src/components/BlogCard.tsx`**
+- [ ] **Step 1: Create `src/components/DraftBadge.tsx`**
 
-Add above the `<time>` element, inside the `<Link>`:
+The badge appears in two places with the same styling, and it owns one rule — never render in production — that must not be stated twice.
 
 ```tsx
-      {import.meta.env.DEV && frontmatter.draft && (
-        <span style={{
-          display: 'inline-block',
-          fontSize: '0.7rem',
-          fontWeight: 700,
-          letterSpacing: '0.08em',
-          color: '#0f1117',
-          background: 'var(--color-accent)',
-          padding: '0.1rem 0.4rem',
-          borderRadius: '3px',
-          marginBottom: '0.5rem',
-        }}>
-          DRAFT
-        </span>
-      )}
+interface Props {
+  draft?: boolean;
+  /** Spacing below the badge; differs between the card and the post header. */
+  marginBottom?: string;
+}
+
+/** Dev-only marker so a draft read in `npm run dev` is never mistaken for live. */
+export default function DraftBadge({ draft, marginBottom = '0.5rem' }: Props) {
+  if (!import.meta.env.DEV || !draft) return null;
+
+  return (
+    <span style={{
+      display: 'inline-block',
+      fontSize: '0.7rem',
+      fontWeight: 700,
+      letterSpacing: '0.08em',
+      color: '#0f1117',
+      background: 'var(--color-accent)',
+      padding: '0.1rem 0.4rem',
+      borderRadius: '3px',
+      marginBottom,
+    }}>
+      DRAFT
+    </span>
+  );
+}
 ```
 
-- [ ] **Step 2: Add the same badge to `src/pages/BlogPost.tsx`**
+- [ ] **Step 2: Use it in both places**
 
-Insert immediately above the `<time>` element in the rendered post:
+In `src/components/BlogCard.tsx`, add `import DraftBadge from './DraftBadge';` and place this immediately above the `<time>` element, inside the `<Link>`:
 
 ```tsx
-      {import.meta.env.DEV && post.frontmatter.draft && (
-        <span style={{
-          display: 'inline-block',
-          fontSize: '0.7rem',
-          fontWeight: 700,
-          letterSpacing: '0.08em',
-          color: '#0f1117',
-          background: 'var(--color-accent)',
-          padding: '0.1rem 0.4rem',
-          borderRadius: '3px',
-          marginBottom: '0.75rem',
-        }}>
-          DRAFT
-        </span>
-      )}
+      <DraftBadge draft={frontmatter.draft} />
+```
+
+In `src/pages/BlogPost.tsx`, add `import DraftBadge from '../components/DraftBadge';` and place this immediately above the `<time>` element:
+
+```tsx
+      <DraftBadge draft={post.frontmatter.draft} marginBottom="0.75rem" />
 ```
 
 - [ ] **Step 3: Make the post page's tags links**
@@ -674,7 +707,7 @@ Expected: "Draft Probe" carries a gold DRAFT badge on the index and on its own p
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/components/BlogCard.tsx src/pages/BlogPost.tsx
+git add src/components/DraftBadge.tsx src/components/BlogCard.tsx src/pages/BlogPost.tsx
 git commit -m "feat: add draft badge and clickable post tags"
 ```
 
@@ -1229,27 +1262,16 @@ git commit -m "content: add Eidos specification documents"
 ### Task 8: Load the Eidos collection
 
 **Files:**
+- Modify: `src/lib/frontmatter.ts`
 - Modify: `src/lib/content.ts`
 
 **Interfaces:**
-- Consumes: `loadAll`, `loadOne` from Task 1; `slugFromOrderedPath` from Task 1; the files from Task 7.
-- Produces: `EidosFrontmatter`; `loadEidosDocs(): Promise<ContentEntry<EidosFrontmatter>[]>` sorted ascending by `order`; `loadEidosDoc(slug): Promise<ContentEntry<EidosFrontmatter> | null>`.
+- Consumes: `loadAll`, `slugFromOrderedPath` from Task 1; the files from Task 7.
+- Produces: `EidosFrontmatter` in `src/lib/frontmatter.ts`, re-exported from `content.ts`; `loadEidosDocs(): Promise<ContentEntry<EidosFrontmatter>[]>` sorted ascending by `order`.
 
-- [ ] **Step 1: Import the ordered slug rule**
+Only the list loader is written. Task 9's document page finds its document inside the loaded list — it needs every title anyway for the sidebar and prev/next — so a single-document lookup would be an export with no caller.
 
-Change the import at the top of `src/lib/content.ts`:
-
-```ts
-import {
-  parseMarkdown,
-  slugFromDatedPath,
-  slugFromOrderedPath,
-} from './markdown';
-```
-
-- [ ] **Step 2: Add the frontmatter type**
-
-Place it after `ProjectFrontmatter`:
+- [ ] **Step 1: Add the frontmatter type to `src/lib/frontmatter.ts`**
 
 ```ts
 export interface EidosFrontmatter {
@@ -1260,9 +1282,9 @@ export interface EidosFrontmatter {
 }
 ```
 
-- [ ] **Step 3: Add the glob and the two loaders**
+- [ ] **Step 2: Wire it through `src/lib/content.ts`**
 
-Add the glob beside the other two, and the functions at the end of the file:
+Add `slugFromOrderedPath` to the `./markdown` import, add `EidosFrontmatter` to both the `import type` and the `export type` lines for `./frontmatter`, then add the glob beside the other two:
 
 ```ts
 const eidosModules = import.meta.glob<string>('/content/eidos/*.md', {
@@ -1271,18 +1293,14 @@ const eidosModules = import.meta.glob<string>('/content/eidos/*.md', {
 });
 ```
 
+- [ ] **Step 3: Add the loader at the end of the file**
+
 ```ts
 export async function loadEidosDocs(): Promise<ContentEntry<EidosFrontmatter>[]> {
   const entries = await loadAll<EidosFrontmatter>(eidosModules, slugFromOrderedPath);
   return entries.sort((a, b) => a.frontmatter.order - b.frontmatter.order);
 }
-
-export async function loadEidosDoc(slug: string): Promise<ContentEntry<EidosFrontmatter> | null> {
-  return loadOne<EidosFrontmatter>(eidosModules, slugFromOrderedPath, slug);
-}
 ```
-
-`loadEidosDoc` is exported for symmetry with the other collections even though Task 9 reads the whole set; leaving it unexported would be inconsistent, and it is a public API, so `noUnusedLocals` does not object.
 
 - [ ] **Step 4: Verify**
 
@@ -1292,7 +1310,7 @@ Expected: both pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/content.ts
+git add src/lib/frontmatter.ts src/lib/content.ts
 git commit -m "feat: load the Eidos specification collection"
 ```
 
@@ -1647,7 +1665,7 @@ Today a crawler requesting any URL gets `<div id="root"></div>` and the title "A
 - Modify: `tsconfig.node.json`
 
 **Interfaces:**
-- Consumes: `parseMarkdown`, `slugFromDatedPath`, `slugFromOrderedPath` from Task 1; `SITE`, `pageTitle` from Task 10.
+- Consumes: `parseMarkdown`, `slugFromDatedPath`, `slugFromOrderedPath` from Task 1; the frontmatter types from `src/lib/frontmatter.ts` (Tasks 1, 2, 8) via a type-only import, which is erased at runtime so the Vite-only `content.ts` is never pulled into Node; `SITE`, `pageTitle` from Task 10.
 - Produces: `dist/<route>/index.html` for every route, and `dist/404.html`. Task 12 extends the same script.
 
 Deliberately **not** using `hydrateRoot`: `main.tsx` calls `createRoot().render()`, which discards whatever sits inside `#root`. The injected HTML exists for clients that never run JavaScript; the browser throws it away and renders the real app microseconds later. Because the script never executes React, the Three.js gear background never runs under Node — which is what keeps this approach cheap.
@@ -1684,6 +1702,11 @@ import {
   slugFromDatedPath,
   slugFromOrderedPath,
 } from '../src/lib/markdown';
+import type {
+  BlogFrontmatter,
+  ProjectFrontmatter,
+  EidosFrontmatter,
+} from '../src/lib/frontmatter';
 import { SITE, pageTitle } from '../src/lib/site';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -1721,35 +1744,17 @@ function readCollection<T>(dir: string, slugFn: (path: string) => string) {
     });
 }
 
-interface BlogFm {
-  title: string;
-  date: string;
-  excerpt: string;
-  draft?: boolean;
-}
-interface ProjectFm {
-  title: string;
-  description: string;
-  date: string;
-}
-interface EidosFm {
-  title: string;
-  order: number;
-  version: string;
-  summary: string;
-}
-
-const posts = readCollection<BlogFm>('blog', slugFromDatedPath)
+const posts = readCollection<BlogFrontmatter>('blog', slugFromDatedPath)
   .filter(p => !p.frontmatter.draft)
   .sort(
     (a, b) => new Date(b.frontmatter.date).getTime() - new Date(a.frontmatter.date).getTime()
   );
 
-const projects = readCollection<ProjectFm>('projects', slugFromDatedPath).sort(
+const projects = readCollection<ProjectFrontmatter>('projects', slugFromDatedPath).sort(
   (a, b) => new Date(b.frontmatter.date).getTime() - new Date(a.frontmatter.date).getTime()
 );
 
-const eidosDocs = readCollection<EidosFm>('eidos', slugFromOrderedPath).sort(
+const eidosDocs = readCollection<EidosFrontmatter>('eidos', slugFromOrderedPath).sort(
   (a, b) => a.frontmatter.order - b.frontmatter.order
 );
 
