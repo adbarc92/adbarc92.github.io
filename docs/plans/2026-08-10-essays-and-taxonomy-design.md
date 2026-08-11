@@ -1,0 +1,221 @@
+# Essays, Taxonomy, and the Eidos Section — Design
+
+**Date:** 2026-08-10
+**Branch:** `feat/essays-and-taxonomy`
+**Status:** approved, pending implementation plan
+
+---
+
+## Goal
+
+Publish the Eidos essay and its four-document specification, and remove the friction
+that would otherwise make each subsequent essay a chore. Three capabilities fall out
+of that: a draft state so unfinished work can be committed without going live, a
+category taxonomy so fiction, software, and political writing can share one feed
+without colliding, and a home for the specification that the essay can point at.
+
+## Non-goals
+
+- A post-scaffolding script (`npm run new:post`). Deferred; frontmatter is short enough to copy.
+- Frontmatter validation as a build gate. Deferred.
+- RSS.
+- Typography work beyond what longform readability requires (see Component 5).
+- Multi-version hosting of the specification. One version is live; git holds history.
+
+---
+
+## Component 1 — Content schema
+
+**File:** `src/lib/content.ts`
+
+Introduce a closed category set and open tags:
+
+```ts
+export type Category = 'software' | 'fiction' | 'politics' | 'meta';
+
+export const CATEGORIES: { id: Category; label: string }[] = [
+  { id: 'software', label: 'Software' },
+  { id: 'fiction',  label: 'Fiction' },
+  { id: 'politics', label: 'Politics' },
+  { id: 'meta',     label: 'Meta' },
+];
+```
+
+`BlogFrontmatter` gains `category: Category` (required) and `draft?: boolean`.
+`tags: string[]` is retained, unchanged, for cross-cutting filters such as
+`architecture` or `ai` that span categories.
+
+The category set is closed because an open one drifts — `politics` and `political`
+both come to exist, and the filter silently splits. Adding a category is a two-line
+change confined to this file. Tags stay open because their value is exactly that
+they are cheap to coin.
+
+A new `EidosFrontmatter` describes specification documents:
+
+```ts
+export interface EidosFrontmatter {
+  title: string;
+  order: number;
+  version: string;
+  summary: string;
+}
+```
+
+**Refactor.** `loadBlogPosts` / `loadBlogPost` / `loadProjects` / `loadProject` are
+four near-identical functions differing only in their glob and sort. This change adds
+a fifth and sixth. Collapse them onto a generic pair — a loader that maps a glob to
+parsed entries and a lookup that resolves one slug — with the public function names
+and signatures preserved so no page changes. This is the only refactor in scope, and
+it is in code the change already has to touch.
+
+**Slug derivation.** The existing rule strips a `YYYY-MM-DD-` prefix. Eidos documents
+are ordered rather than dated, so their rule strips a leading `NN-`:
+`01-architecture.md` → `architecture`. Two rules, selected per collection.
+
+## Component 2 — Draft state
+
+**Files:** `src/lib/content.ts`, `src/components/BlogCard.tsx`, `src/pages/BlogPost.tsx`
+
+A post with `draft: true` is filtered out at two points:
+
+1. `loadBlogPosts()` — omitted from the index.
+2. `loadBlogPost(slug)` — returns `null`, so the post renders the existing
+   "Post not found" state rather than being reachable by anyone who guesses the slug.
+
+Both filters are suppressed when `import.meta.env.DEV` is true, so drafts are visible
+and navigable in `npm run dev` and absent from the production build. Publishing is
+then the deletion of one line.
+
+Drafts carry a DRAFT badge on the card and the post page, rendered only in dev. Its
+purpose is to prevent the failure mode where a draft read in the dev server is assumed
+to be live.
+
+**Known limitation, accepted.** `import.meta.glob` emits every markdown file in the
+globbed directory as a fetchable chunk in `dist/`, so `draft: true` hides a post from
+the site without keeping its text out of the build. A determined reader could recover
+draft prose from devtools. The alternative — an unglobbed `content/drafts/` directory —
+is genuinely absent from the bundle but reintroduces the friction this component exists
+to remove, since previewing would require moving the file. The flag is the right trade
+for a personal site; if a draft is ever sensitive, it stays out of the repository.
+
+## Component 3 — Filtering on /blog
+
+**Files:** `src/pages/Blog.tsx`, new `src/components/CategoryFilter.tsx`,
+`src/components/BlogCard.tsx`, `src/pages/BlogPost.tsx`
+
+One feed, newest first, with a chip row above it: `All` followed by one chip per
+category that has at least one visible post. Categories with no posts render no chip,
+so the taxonomy can be declared ahead of the writing without advertising empty rooms.
+
+Filter state lives in the URL through `useSearchParams`:
+
+- `/blog?category=fiction`
+- `/blog?tag=architecture`
+
+Putting it in the URL rather than component state makes a filtered view shareable and
+survives a reload, which is the whole reason to prefer it. The two parameters compose:
+a category and a tag together narrow to the intersection.
+
+Tags rendered on `BlogCard` and `BlogPost` become links into `/blog?tag=<tag>`. When a
+filter matches nothing, the page says so and offers a link back to the unfiltered feed.
+
+## Component 4 — The /eidos section
+
+**Files:** new `content/eidos/*.md`, new `src/pages/Eidos.tsx`, new
+`src/pages/EidosDoc.tsx`, `src/App.tsx`, `src/components/NavBar.tsx`
+
+The specification is reference material, not writing, and putting four documents into
+the feed would bury the essay under its own appendices. It gets a section.
+
+**Routes:**
+
+- `/eidos` — index. Section title, version badge from the documents' shared `version`,
+  a link to the essay, and one card per document showing its `summary`.
+- `/eidos/:slug` — a document. Sidebar listing all four in `order` with the current one
+  marked, article body, and previous/next links at the foot.
+
+**Content files**, from the supplied sources:
+
+| Source | File | Slug |
+|---|---|---|
+| `01-EIDOS.md` | `content/eidos/01-architecture.md` | `architecture` |
+| `02-ADOPTION.md` | `content/eidos/02-adoption.md` | `adoption` |
+| `03-FORM-TEMPLATE.md` | `content/eidos/03-form-template.md` | `form-template` |
+| `04-INFRASTRUCTURE.md` | `content/eidos/04-infrastructure.md` | `infrastructure` |
+
+`NavBar` gains `{ to: '/eidos', label: 'Eidos' }`, and its existing `/blog` entry is
+relabelled `Writing` — the route is unchanged, but "Blog" describes the coming mix of
+fiction and political writing poorly.
+
+## Component 5 — Prose styles
+
+**File:** `src/index.css`
+
+The global reset sets `margin: 0` on every element, and nothing restores it for the
+HTML that `marked` produces into `dangerouslySetInnerHTML`. Every paragraph, heading,
+and list in a rendered document therefore has no spacing, and `ul { padding: 0 }`
+pushes bullets outside their container. The single existing post is short enough to
+have concealed this; a 2,300-word essay would not, and three of the four specification
+documents are built on tables, which currently render without borders or cell padding.
+
+Add a `.prose` class, applied to the `<article>` in `BlogPost`, `ProjectDetail`, and
+`EidosDoc`, scoping rules to rendered markdown only:
+
+- `p`, `ul`, `ol`, `blockquote` — vertical rhythm and list indentation
+- `h2`, `h3`, `h4` — size, weight, and asymmetric margins (more above than below)
+- `table`, `th`, `td` — borders from `--color-gear-stroke`, cell padding, header weight,
+  and a horizontally scrollable wrapper so wide tables do not force page scroll
+- `hr`, `strong`, `em`, `blockquote` — using existing custom properties throughout
+
+No new tokens and no font changes. This is the minimum that makes longform legible.
+
+## Component 6 — Content and editorial pass
+
+**Blog post:** `content/blog/2026-08-10-eidos-an-architecture-for-cheap-code.md`,
+from `essay-v4.md`, published live (no draft flag), `category: software`,
+tags `architecture`, `ai`, `philosophy`.
+
+**Backfill:** the existing `2026-02-27-hello-world.md` gains `category: meta`, since
+`category` is required, and loses its duplicate `# Hello World` H1.
+
+**Editorial rules applied to all five documents:**
+
+1. **Restore the encoding.** Every source arrived with UTF-8 misread as Latin-1: `â`
+   where a dash belongs, `Â§` for `§`. Em dash and en dash both collapsed to the same
+   character, so restoration is contextual, not mechanical — em dash throughout, except
+   `costâbenefit` → `cost–benefit` and the two occurrences of
+   `registry â enforcement parity` → `registry ↔ enforcement parity`.
+2. **Strip the leading H1.** Every page renders `frontmatter.title` as the `<h1>`;
+   a body starting at `#` duplicates it. Bodies start at `##`.
+3. **Strip process metadata.** The `*Draft v4 — publication critique applied…*` line
+   records how the draft was revised and is not part of the essay.
+4. **Lift subtitles into frontmatter.** `**The canonical specification — v0.2, July
+   2026**` and its siblings become `version` and render in the page header.
+5. **Change nothing else.** No rewriting, retitling, or restructuring of the prose.
+
+The essay's closing line — *"[The specification, and the systems that demonstrate it,
+continue from here.]"* — is replaced by a real link to `/eidos`, which is what the
+bracket was standing in for.
+
+---
+
+## Verification
+
+No test framework is configured, so verification is `npm run build` (which type-checks),
+`npm run lint`, and a manual pass at `localhost:5173`:
+
+- The essay renders with paragraph spacing, and its links resolve.
+- All four specification documents render, tables included, with working sidebar
+  navigation and prev/next.
+- Category chips filter the feed; `?category=` and `?tag=` survive a reload; a tag click
+  from a post lands on a correctly filtered feed.
+- A scratch post with `draft: true` appears in dev with its badge and is absent from
+  `npm run build && npm run preview`, where its URL renders "Post not found".
+
+## Risks
+
+- **Category as a required field** breaks any post lacking it. Only one post exists and
+  it is backfilled in this change; the risk is that a future post omits it and fails at
+  runtime rather than at build. The deferred validation script is the answer if that
+  ever happens twice.
+- **`draft` is obscurity, not privacy** — stated in full under Component 2.
