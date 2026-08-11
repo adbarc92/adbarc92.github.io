@@ -18,7 +18,7 @@ export default function Eidos() {
       <title>{pageTitle('Eidos')}</title>
       <meta
         name="description"
-        content="An architecture for cheap code: humans design the Forms, agents fill them, and fitness functions verify the fit."
+        content="An architecture for cheap code: humans design the Forms, agents fill them, fitness functions verify the fit."
       />
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', flexWrap: 'wrap' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 700 }}>Eidos</h1>
