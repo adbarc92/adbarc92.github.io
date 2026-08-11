@@ -33,3 +33,10 @@ export interface ProjectFrontmatter {
     live?: string;
   };
 }
+
+export interface EidosFrontmatter {
+  title: string;
+  order: number;
+  version: string;
+  summary: string;
+}

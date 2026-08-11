@@ -1,10 +1,11 @@
 import {
   parseMarkdown,
   slugFromDatedPath,
+  slugFromOrderedPath,
 } from './markdown';
-import type { BlogFrontmatter, ProjectFrontmatter } from './frontmatter';
+import type { BlogFrontmatter, ProjectFrontmatter, EidosFrontmatter } from './frontmatter';
 
-export type { BlogFrontmatter, ProjectFrontmatter } from './frontmatter';
+export type { BlogFrontmatter, ProjectFrontmatter, EidosFrontmatter } from './frontmatter';
 export type { Category } from './frontmatter';
 export { CATEGORIES } from './frontmatter';
 
@@ -59,6 +60,11 @@ const projectModules = import.meta.glob<string>('/content/projects/*.md', {
   import: 'default',
 });
 
+const eidosModules = import.meta.glob<string>('/content/eidos/*.md', {
+  query: '?raw',
+  import: 'default',
+});
+
 /**
  * Drafts are visible in the dev server and absent from production builds.
  * This hides them; it does not keep their text out of the bundle — see the
@@ -85,4 +91,9 @@ export async function loadProjects(): Promise<ContentEntry<ProjectFrontmatter>[]
 
 export async function loadProject(slug: string): Promise<ContentEntry<ProjectFrontmatter> | null> {
   return loadOne<ProjectFrontmatter>(projectModules, slugFromDatedPath, slug);
+}
+
+export async function loadEidosDocs(): Promise<ContentEntry<EidosFrontmatter>[]> {
+  const entries = await loadAll<EidosFrontmatter>(eidosModules, slugFromOrderedPath);
+  return entries.sort((a, b) => a.frontmatter.order - b.frontmatter.order);
 }
