@@ -2,10 +2,9 @@
 title: "Hello World"
 date: 2026-02-27
 excerpt: "The first post on my new portfolio site."
+category: meta
 tags: ["meta"]
 ---
-
-# Hello World
 
 This is the first post on my new site. I'm rebuilding my portfolio as a hub
 for my work across software engineering, machine learning, robotics, and

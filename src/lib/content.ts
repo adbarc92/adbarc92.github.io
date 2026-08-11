@@ -5,6 +5,8 @@ import {
 import type { BlogFrontmatter, ProjectFrontmatter } from './frontmatter';
 
 export type { BlogFrontmatter, ProjectFrontmatter } from './frontmatter';
+export type { Category } from './frontmatter';
+export { CATEGORIES } from './frontmatter';
 
 export interface ContentEntry<T> {
   slug: string;
@@ -57,13 +59,23 @@ const projectModules = import.meta.glob<string>('/content/projects/*.md', {
   import: 'default',
 });
 
+/**
+ * Drafts are visible in the dev server and absent from production builds.
+ * This hides them; it does not keep their text out of the bundle — see the
+ * design doc, Component 2.
+ */
+const SHOW_DRAFTS = import.meta.env.DEV;
+
 export async function loadBlogPosts(): Promise<ContentEntry<BlogFrontmatter>[]> {
   const entries = await loadAll<BlogFrontmatter>(blogModules, slugFromDatedPath);
-  return entries.sort(byDateDesc);
+  return entries.filter(e => SHOW_DRAFTS || !e.frontmatter.draft).sort(byDateDesc);
 }
 
 export async function loadBlogPost(slug: string): Promise<ContentEntry<BlogFrontmatter> | null> {
-  return loadOne<BlogFrontmatter>(blogModules, slugFromDatedPath, slug);
+  const entry = await loadOne<BlogFrontmatter>(blogModules, slugFromDatedPath, slug);
+  if (!entry) return null;
+  if (!SHOW_DRAFTS && entry.frontmatter.draft) return null;
+  return entry;
 }
 
 export async function loadProjects(): Promise<ContentEntry<ProjectFrontmatter>[]> {
