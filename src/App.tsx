@@ -6,6 +6,8 @@ import BlogPost from './pages/BlogPost';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 import About from './pages/About';
+import Eidos from './pages/Eidos';
+import EidosDoc from './pages/EidosDoc';
 
 const router = createBrowserRouter([
   {
@@ -17,6 +19,8 @@ const router = createBrowserRouter([
       { path: 'blog/:slug', element: <BlogPost /> },
       { path: 'projects', element: <Projects /> },
       { path: 'projects/:slug', element: <ProjectDetail /> },
+      { path: 'eidos', element: <Eidos /> },
+      { path: 'eidos/:slug', element: <EidosDoc /> },
       { path: 'about', element: <About /> },
     ],
   },
