@@ -2093,6 +2093,314 @@ Per the repo's conventions, do not push directly to `main` and do not add attrib
 
 ---
 
+### Task 14: Test suite for the pure logic
+
+Added after the final review. The plan deliberately shipped without a test runner, and the final whole-branch review named coverage as the branch's largest carried risk; a repository policy gate then blocked the pull request for the same reason. Both point the same way, and the branch has meanwhile created several genuinely testable pure modules that did not exist before it.
+
+This task is not gate appeasement. Every test below covers logic that has already produced a real bug in this branch, or guards a boundary the reviewers flagged.
+
+**Files:**
+- Create: `src/lib/escape.ts` (moved out of `scripts/prerender.ts`)
+- Create: `src/lib/dates.test.ts`, `src/lib/markdown.test.ts`, `src/lib/escape.test.ts`, `src/lib/frontmatter.test.ts`
+- Modify: `src/lib/frontmatter.ts` (add `isPublished`)
+- Modify: `src/lib/content.ts` (use `isPublished`)
+- Modify: `scripts/prerender.ts` (import the escape helpers and `isPublished` instead of defining its own)
+- Modify: `package.json`, `vite.config.ts`
+
+**Interfaces:**
+- Produces: `escapeAttr(value: string): string` and `escapeXml(value: string): string` from `src/lib/escape.ts`; `isPublished(frontmatter: { draft?: boolean }, showDrafts: boolean): boolean` from `src/lib/frontmatter.ts`; `npm test`.
+
+Two small refactors come first, because they are what makes the logic reachable from a test at all:
+
+- **`escapeAttr` / `escapeXml` are currently module-private inside `scripts/prerender.ts`,** which executes its whole pipeline at import time. Importing that file from a test would run a build. Move both functions to `src/lib/escape.ts` — pure, no side effects, no `import.meta` — and import them in the script.
+- **The draft rule is written out four times** (the post list, the single-post lookup, and the prerender script's page and feed filters). The final review confirmed all four agree today; nothing keeps them agreeing. Collapse them onto one predicate.
+
+- [ ] **Step 1: Install Vitest**
+
+Run: `npm install --save-dev vitest`
+
+This is the second and last new devDependency in the plan, and it is authorised by the decision to add this task.
+
+- [ ] **Step 2: Create `src/lib/escape.ts` and use it in the script**
+
+Move both functions verbatim out of `scripts/prerender.ts`:
+
+```ts
+/**
+ * Escaping for generated HTML attributes and XML text. Pure — imported by both
+ * the app-side modules and scripts/prerender.ts, so no import.meta, no side effects.
+ *
+ * Ampersand is replaced first in both, otherwise the ampersands introduced by the
+ * later replacements would themselves be escaped.
+ */
+
+export function escapeAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+export function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+```
+
+Delete both definitions from `scripts/prerender.ts` and add `import { escapeAttr, escapeXml } from '../src/lib/escape';`.
+
+- [ ] **Step 3: Add `isPublished` to `src/lib/frontmatter.ts`**
+
+```ts
+/**
+ * The single draft rule. A post is published unless it is flagged a draft, and
+ * drafts are shown only where the caller says so — the dev server, never a build.
+ * Kept here so the four filter points cannot drift apart.
+ */
+export function isPublished(frontmatter: { draft?: boolean }, showDrafts: boolean): boolean {
+  return showDrafts || !frontmatter.draft;
+}
+```
+
+Then use it at all four sites. In `src/lib/content.ts`:
+
+```ts
+  return entries.filter(e => isPublished(e.frontmatter, SHOW_DRAFTS)).sort(byDateDesc);
+```
+
+```ts
+  if (!isPublished(entry.frontmatter, SHOW_DRAFTS)) return null;
+```
+
+In `scripts/prerender.ts`, the build never shows drafts, so pass `false`:
+
+```ts
+  .filter(p => isPublished(p.frontmatter, false))
+```
+
+- [ ] **Step 4: Configure Vitest in `vite.config.ts`**
+
+```ts
+/// <reference types="vitest/config" />
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
+  },
+})
+```
+
+And in `package.json`, add to `scripts`:
+
+```json
+    "test": "vitest run",
+```
+
+- [ ] **Step 5: Write `src/lib/dates.test.ts`**
+
+This is the regression that shipped one day early on every date on the site.
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { formatDate } from './dates';
+
+describe('formatDate', () => {
+  it('renders the authored calendar day rather than the local-time one', () => {
+    // Regression guard: new Date('2026-08-10') is UTC midnight, so formatting in
+    // local time renders "August 9" anywhere west of Greenwich.
+    expect(formatDate('2026-08-10')).toBe('August 10, 2026');
+    expect(formatDate('2026-02-27')).toBe('February 27, 2026');
+  });
+
+  it('accepts a Date, because the YAML parser resolves an unquoted date to one', () => {
+    expect(formatDate(new Date('2026-08-10T00:00:00Z'))).toBe('August 10, 2026');
+  });
+
+  it('does not slip across a year boundary', () => {
+    expect(formatDate('2026-01-01')).toBe('January 1, 2026');
+    expect(formatDate('2026-12-31')).toBe('December 31, 2026');
+  });
+});
+```
+
+- [ ] **Step 6: Write `src/lib/markdown.test.ts`**
+
+The GFM and highlighting cases guard the `marked.use(...)` configuration that `About.tsx` was silently depending on before the final fix wave.
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { parseMarkdown, slugFromDatedPath, slugFromOrderedPath } from './markdown';
+
+describe('slugFromDatedPath', () => {
+  it('strips the date prefix and the extension', () => {
+    expect(slugFromDatedPath('/content/blog/2026-08-10-eidos-an-architecture.md'))
+      .toBe('eidos-an-architecture');
+  });
+
+  it('leaves an undated filename alone', () => {
+    expect(slugFromDatedPath('/content/blog/hello.md')).toBe('hello');
+  });
+
+  it('strips only the leading date, not digits inside the title', () => {
+    expect(slugFromDatedPath('/content/blog/2026-08-10-2026-in-review.md'))
+      .toBe('2026-in-review');
+  });
+});
+
+describe('slugFromOrderedPath', () => {
+  it('strips the ordering prefix', () => {
+    expect(slugFromOrderedPath('/content/eidos/01-architecture.md')).toBe('architecture');
+    expect(slugFromOrderedPath('/content/eidos/04-infrastructure.md')).toBe('infrastructure');
+  });
+});
+
+describe('parseMarkdown', () => {
+  it('separates frontmatter from body', () => {
+    const { frontmatter, html } = parseMarkdown<{ title: string; tags: string[] }>(
+      '---\ntitle: "T"\ntags: ["a", "b"]\n---\n\nBody text.\n'
+    );
+    expect(frontmatter.title).toBe('T');
+    expect(frontmatter.tags).toEqual(['a', 'b']);
+    expect(html).toContain('Body text.');
+    expect(html).not.toContain('title:');
+  });
+
+  it('accepts CRLF delimiters, since content files may be checked out with them', () => {
+    const { frontmatter } = parseMarkdown<{ title: string }>(
+      '---\r\ntitle: "T"\r\n---\r\n\r\nBody.\r\n'
+    );
+    expect(frontmatter.title).toBe('T');
+  });
+
+  it('treats a file with no frontmatter as all body', () => {
+    const { frontmatter, html } = parseMarkdown<Record<string, unknown>>('Just prose.\n');
+    expect(frontmatter).toEqual({});
+    expect(html).toContain('Just prose.');
+  });
+
+  it('renders GFM tables, which the specification documents depend on', () => {
+    const { html } = parseMarkdown('| a | b |\n|---|---|\n| 1 | 2 |\n');
+    expect(html).toContain('<table>');
+    expect(html).toContain('<td>1</td>');
+  });
+
+  it('highlights fenced code', () => {
+    const { html } = parseMarkdown('```js\nconst x = 1;\n```\n');
+    expect(html).toContain('hljs');
+    expect(html).toContain('language-js');
+  });
+
+  it('falls back to plaintext for an unknown language rather than throwing', () => {
+    const { html } = parseMarkdown('```notalanguage\nx\n```\n');
+    expect(html).toContain('language-plaintext');
+  });
+});
+```
+
+- [ ] **Step 7: Write `src/lib/escape.test.ts`**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { escapeAttr, escapeXml } from './escape';
+
+describe('escapeAttr', () => {
+  it('prevents a quote in a title from breaking out of an attribute', () => {
+    expect(escapeAttr('He said "hello"')).toBe('He said &quot;hello&quot;');
+  });
+
+  it('escapes an ampersand once, not twice', () => {
+    // "Form Template & Gate Registry" is a real document title.
+    expect(escapeAttr('Form Template & Gate Registry'))
+      .toBe('Form Template &amp; Gate Registry');
+  });
+
+  it('escapes angle brackets so markup cannot be injected through a description', () => {
+    expect(escapeAttr('<script>')).toBe('&lt;script&gt;');
+  });
+});
+
+describe('escapeXml', () => {
+  it('escapes apostrophes, which escapeAttr leaves alone', () => {
+    expect(escapeXml("a human's attention")).toBe('a human&apos;s attention');
+  });
+
+  it('escapes an ampersand once, not twice', () => {
+    expect(escapeXml('Form Template & Gate Registry'))
+      .toBe('Form Template &amp; Gate Registry');
+  });
+
+  it('leaves ordinary text untouched', () => {
+    expect(escapeXml('Eidos: An Architecture for Cheap Code'))
+      .toBe('Eidos: An Architecture for Cheap Code');
+  });
+});
+```
+
+- [ ] **Step 8: Write `src/lib/frontmatter.test.ts`**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { isPublished, CATEGORIES } from './frontmatter';
+
+describe('isPublished', () => {
+  it('hides a draft when drafts are not being shown', () => {
+    expect(isPublished({ draft: true }, false)).toBe(false);
+  });
+
+  it('shows a draft when they are — the dev server', () => {
+    expect(isPublished({ draft: true }, true)).toBe(true);
+  });
+
+  it('treats an absent draft flag as published', () => {
+    expect(isPublished({}, false)).toBe(true);
+  });
+
+  it('treats draft: false as published', () => {
+    expect(isPublished({ draft: false }, false)).toBe(true);
+  });
+});
+
+describe('CATEGORIES', () => {
+  it('has no duplicate ids, which would split a filter in two', () => {
+    const ids = CATEGORIES.map(c => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('gives every category a label', () => {
+    expect(CATEGORIES.every(c => c.label.length > 0)).toBe(true);
+  });
+});
+```
+
+- [ ] **Step 9: Verify**
+
+Run: `npm test`
+Expected: all suites pass.
+
+Run: `npm run build && npm run lint`
+Expected: both pass, and the build still reports `prerender: wrote 12 pages + 404.html, rss.xml, sitemap.xml`. The draft refactor must not change any count.
+
+Then prove the tests can fail: temporarily change `timeZone: 'UTC'` to `timeZone: 'America/Chicago'` in `src/lib/dates.ts`, run `npm test`, and confirm the date suite goes red. Restore the file and confirm green. A suite that cannot fail is not a suite.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add package.json package-lock.json vite.config.ts src/lib scripts/prerender.ts
+git commit -m "test: cover date formatting, slugs, markdown config, escaping, and the draft rule"
+```
+
+---
+
 ## Self-Review
 
 **Spec coverage.** Component 1 → Tasks 1, 2, 8. Component 2 → Tasks 2, 5. Component 3 → Tasks 5, 6. Component 4 → Tasks 7, 8, 9. Component 5 → Task 3. Component 6 → Tasks 2, 4, 7. Component 7 → Tasks 10, 11, 12, 13. No component is unimplemented.
