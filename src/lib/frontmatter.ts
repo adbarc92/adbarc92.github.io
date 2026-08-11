@@ -40,3 +40,12 @@ export interface EidosFrontmatter {
   version: string;
   summary: string;
 }
+
+/**
+ * The single draft rule. A post is published unless it is flagged a draft, and
+ * drafts are shown only where the caller says so — the dev server, never a build.
+ * Kept here so the four filter points cannot drift apart.
+ */
+export function isPublished(frontmatter: { draft?: boolean }, showDrafts: boolean): boolean {
+  return showDrafts || !frontmatter.draft;
+}

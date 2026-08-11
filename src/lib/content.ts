@@ -4,6 +4,7 @@ import {
   slugFromOrderedPath,
 } from './markdown';
 import type { BlogFrontmatter, ProjectFrontmatter, EidosFrontmatter } from './frontmatter';
+import { isPublished } from './frontmatter';
 
 export type { BlogFrontmatter, ProjectFrontmatter, EidosFrontmatter } from './frontmatter';
 export type { Category } from './frontmatter';
@@ -74,13 +75,13 @@ const SHOW_DRAFTS = import.meta.env.DEV;
 
 export async function loadBlogPosts(): Promise<ContentEntry<BlogFrontmatter>[]> {
   const entries = await loadAll<BlogFrontmatter>(blogModules, slugFromDatedPath);
-  return entries.filter(e => SHOW_DRAFTS || !e.frontmatter.draft).sort(byDateDesc);
+  return entries.filter(e => isPublished(e.frontmatter, SHOW_DRAFTS)).sort(byDateDesc);
 }
 
 export async function loadBlogPost(slug: string): Promise<ContentEntry<BlogFrontmatter> | null> {
   const entry = await loadOne<BlogFrontmatter>(blogModules, slugFromDatedPath, slug);
   if (!entry) return null;
-  if (!SHOW_DRAFTS && entry.frontmatter.draft) return null;
+  if (!isPublished(entry.frontmatter, SHOW_DRAFTS)) return null;
   return entry;
 }
 

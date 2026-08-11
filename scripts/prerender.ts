@@ -18,7 +18,9 @@ import type {
   ProjectFrontmatter,
   EidosFrontmatter,
 } from '../src/lib/frontmatter';
+import { isPublished } from '../src/lib/frontmatter';
 import { SITE, pageTitle, DESCRIPTIONS } from '../src/lib/site';
+import { escapeAttr, escapeXml } from '../src/lib/escape';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const DIST = join(ROOT, 'dist');
@@ -33,14 +35,6 @@ interface Page {
   body: string;
   /** 'article' for posts and documents, 'website' otherwise. */
   type: 'article' | 'website';
-}
-
-function escapeAttr(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 function readCollection<T>(dir: string, slugFn: (path: string) => string) {
@@ -58,7 +52,7 @@ function readCollection<T>(dir: string, slugFn: (path: string) => string) {
 const blogEntries = readCollection<BlogFrontmatter>('blog', slugFromDatedPath);
 
 const posts = blogEntries
-  .filter(p => !p.frontmatter.draft)
+  .filter(p => isPublished(p.frontmatter, false))
   .sort(
     (a, b) => new Date(b.frontmatter.date).getTime() - new Date(a.frontmatter.date).getTime()
   );
@@ -169,15 +163,6 @@ for (const page of pages) {
 // The SPA fallback keeps the bare shell: it stands in for unknown URLs and must
 // not claim another page's canonical or description.
 writeFileSync(join(DIST, '404.html'), shell, 'utf8');
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
 
 const rssItems = posts
   .map(p => {
