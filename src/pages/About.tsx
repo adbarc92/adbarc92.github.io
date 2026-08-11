@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { marked } from 'marked';
+import { pageTitle, SITE } from '../lib/site';
 
 const modules = import.meta.glob<string>('/content/about.md', {
   query: '?raw',
@@ -32,6 +33,8 @@ export default function About() {
 
   return (
     <div style={{ padding: '6rem 2rem 2rem', maxWidth: '48rem', margin: '0 auto' }}>
+      <title>{pageTitle('About')}</title>
+      <meta name="description" content={SITE.description} />
       <article
         style={{ lineHeight: 1.8, color: 'var(--color-text)' }}
         dangerouslySetInnerHTML={{ __html: html }}

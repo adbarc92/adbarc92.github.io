@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { loadProject, type ContentEntry, type ProjectFrontmatter } from '../lib/content';
+import { pageTitle } from '../lib/site';
 
 export default function ProjectDetail() {
   const { slug } = useParams<{ slug: string }>();
@@ -33,6 +34,8 @@ export default function ProjectDetail() {
 
   return (
     <div style={{ padding: '6rem 2rem 2rem', maxWidth: '48rem', margin: '0 auto' }}>
+      <title>{pageTitle(frontmatter.title)}</title>
+      <meta name="description" content={frontmatter.description} />
       <Link to="/projects" style={{
         fontSize: '0.85rem',
         color: 'var(--color-text-muted)',

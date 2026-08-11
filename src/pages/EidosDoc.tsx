@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { loadEidosDocs, type ContentEntry, type EidosFrontmatter } from '../lib/content';
+import { pageTitle } from '../lib/site';
 
 export default function EidosDoc() {
   const { slug } = useParams<{ slug: string }>();
@@ -43,6 +44,8 @@ export default function EidosDoc() {
       gap: '3rem',
       alignItems: 'flex-start',
     }}>
+      <title>{pageTitle(doc.frontmatter.title)}</title>
+      <meta name="description" content={doc.frontmatter.summary} />
       <nav style={{ flex: '1 1 11rem', minWidth: '11rem', position: 'sticky', top: '6rem' }}>
         <Link to="/eidos" style={{
           fontSize: '0.75rem',

@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { loadBlogPost, type ContentEntry, type BlogFrontmatter } from '../lib/content';
 import { formatDate } from '../lib/dates';
 import DraftBadge from '../components/DraftBadge';
+import { pageTitle } from '../lib/site';
 
 export default function BlogPost() {
   const { slug } = useParams<{ slug: string }>();
@@ -33,6 +34,8 @@ export default function BlogPost() {
 
   return (
     <div style={{ padding: '6rem 2rem 2rem', maxWidth: '48rem', margin: '0 auto' }}>
+      <title>{pageTitle(post.frontmatter.title)}</title>
+      <meta name="description" content={post.frontmatter.excerpt} />
       <Link to="/blog" style={{
         fontSize: '0.85rem',
         color: 'var(--color-text-muted)',

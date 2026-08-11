@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { pageTitle, SITE } from '../lib/site';
 
 const navItems = [
   { to: '/blog', label: 'Writing' },
@@ -18,6 +19,8 @@ export default function Landing() {
       textAlign: 'center',
       gap: '1rem',
     }}>
+      <title>{pageTitle()}</title>
+      <meta name="description" content={SITE.description} />
       <h1 style={{
         fontSize: 'clamp(2.5rem, 6vw, 4.5rem)',
         fontWeight: 700,
