@@ -12,3 +12,17 @@ export const SITE = {
 export function pageTitle(page?: string): string {
   return page ? `${page} — ${SITE.title}` : SITE.title;
 }
+
+/**
+ * Descriptions shared between the page components and scripts/prerender.ts.
+ * React 19 only adopts a prerendered <meta> when name and content match
+ * exactly, so a copy that drifts from its pair appends a second, conflicting
+ * description tag instead of erroring. Single-sourced here to make that
+ * impossible.
+ */
+export const DESCRIPTIONS = {
+  blog: 'Essays on software, fiction, and whatever else holds still long enough.',
+  projects: 'Selected work across software engineering, machine learning, and robotics.',
+  eidos:
+    'An architecture for cheap code: humans design the Forms, agents fill them, fitness functions verify the fit.',
+} as const;

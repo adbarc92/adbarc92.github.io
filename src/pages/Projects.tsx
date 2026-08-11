@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { loadProjects, type ContentEntry, type ProjectFrontmatter } from '../lib/content';
 import ProjectCard from '../components/ProjectCard';
-import { pageTitle } from '../lib/site';
+import { pageTitle, DESCRIPTIONS } from '../lib/site';
 
 export default function Projects() {
   const [projects, setProjects] = useState<ContentEntry<ProjectFrontmatter>[]>([]);
@@ -14,10 +14,7 @@ export default function Projects() {
   return (
     <div style={{ padding: '6rem 2rem 2rem', maxWidth: '64rem', margin: '0 auto' }}>
       <title>{pageTitle('Projects')}</title>
-      <meta
-        name="description"
-        content="Selected work across software engineering, machine learning, and robotics."
-      />
+      <meta name="description" content={DESCRIPTIONS.projects} />
       <h1 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '2rem' }}>Projects</h1>
       {loading ? (
         <p style={{ color: 'var(--color-text-muted)' }}>Loading...</p>

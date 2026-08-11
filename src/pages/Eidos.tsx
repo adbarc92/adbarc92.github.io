@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { loadEidosDocs, type ContentEntry, type EidosFrontmatter } from '../lib/content';
-import { pageTitle } from '../lib/site';
+import { pageTitle, DESCRIPTIONS } from '../lib/site';
 
 export default function Eidos() {
   const [docs, setDocs] = useState<ContentEntry<EidosFrontmatter>[]>([]);
@@ -16,10 +16,7 @@ export default function Eidos() {
   return (
     <div style={{ padding: '6rem 2rem 2rem', maxWidth: '48rem', margin: '0 auto' }}>
       <title>{pageTitle('Eidos')}</title>
-      <meta
-        name="description"
-        content="An architecture for cheap code: humans design the Forms, agents fill them, fitness functions verify the fit."
-      />
+      <meta name="description" content={DESCRIPTIONS.eidos} />
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', flexWrap: 'wrap' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 700 }}>Eidos</h1>
         {version && (

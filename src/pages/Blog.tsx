@@ -9,7 +9,7 @@ import {
 } from '../lib/content';
 import BlogCard from '../components/BlogCard';
 import CategoryFilter from '../components/CategoryFilter';
-import { pageTitle } from '../lib/site';
+import { pageTitle, DESCRIPTIONS } from '../lib/site';
 
 function asCategory(value: string | null): Category | null {
   return CATEGORIES.some(c => c.id === value) ? (value as Category) : null;
@@ -57,10 +57,7 @@ export default function Blog() {
   return (
     <div style={{ padding: '6rem 2rem 2rem', maxWidth: '48rem', margin: '0 auto' }}>
       <title>{pageTitle('Writing')}</title>
-      <meta
-        name="description"
-        content="Essays on software, fiction, and whatever else holds still long enough."
-      />
+      <meta name="description" content={DESCRIPTIONS.blog} />
       <h1 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '2rem' }}>Writing</h1>
 
       {activeTag && (

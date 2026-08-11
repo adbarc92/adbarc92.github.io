@@ -18,7 +18,7 @@ import type {
   ProjectFrontmatter,
   EidosFrontmatter,
 } from '../src/lib/frontmatter';
-import { SITE, pageTitle } from '../src/lib/site';
+import { SITE, pageTitle, DESCRIPTIONS } from '../src/lib/site';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const DIST = join(ROOT, 'dist');
@@ -79,14 +79,14 @@ const pages: Page[] = [
   {
     route: '/blog',
     title: pageTitle('Writing'),
-    description: 'Essays on software, fiction, and whatever else holds still long enough.',
+    description: DESCRIPTIONS.blog,
     body: '',
     type: 'website',
   },
   {
     route: '/projects',
     title: pageTitle('Projects'),
-    description: 'Selected work across software engineering, machine learning, and robotics.',
+    description: DESCRIPTIONS.projects,
     body: '',
     type: 'website',
   },
@@ -100,8 +100,7 @@ const pages: Page[] = [
   {
     route: '/eidos',
     title: pageTitle('Eidos'),
-    description:
-      'An architecture for cheap code: humans design the Forms, agents fill them, fitness functions verify the fit.',
+    description: DESCRIPTIONS.eidos,
     body: '',
     type: 'website',
   },
