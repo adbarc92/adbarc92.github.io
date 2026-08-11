@@ -18,9 +18,12 @@ without colliding, and a home for the specification that the essay can point at.
 
 - A post-scaffolding script (`npm run new:post`). Deferred; frontmatter is short enough to copy.
 - Frontmatter validation as a build gate. Deferred.
-- RSS.
 - Typography work beyond what longform readability requires (see Component 5).
 - Multi-version hosting of the specification. One version is live; git holds history.
+- Migration to Astro, adoption of a headless CMS, and any move to Substack. Surveyed and
+  declined for now; see Component 7 for the reasoning that replaces them.
+- Syndication and email (dev.to, Hashnode, Buttondown). Component 7 makes these possible
+  by producing a feed and correct metadata; performing them is a separate, manual act.
 
 ---
 
@@ -67,6 +70,14 @@ a fifth and sixth. Collapse them onto a generic pair — a loader that maps a gl
 parsed entries and a lookup that resolves one slug — with the public function names
 and signatures preserved so no page changes. This is the only refactor in scope, and
 it is in code the change already has to touch.
+
+**Split.** The parsing half of this module must also run under Node, because the
+prerender script in Component 7 needs identical output to the browser's. Extract
+`src/lib/markdown.ts` holding the `marked` and `highlight.js` configuration,
+`parseMarkdown`, and the two slug rules — pure functions with no `import.meta.glob`,
+importable from a plain Node process. `src/lib/content.ts` keeps the globs and the
+loaders and imports from it. Without this split the script would re-declare the
+renderer, and the two copies would drift.
 
 **Slug derivation.** The existing rule strips a `YYYY-MM-DD-` prefix. Eidos documents
 are ordered rather than dated, so their rule strips a leading `NN-`:
@@ -197,6 +208,69 @@ The essay's closing line — *"[The specification, and the systems that demonstr
 continue from here.]"* — is replaced by a real link to `/eidos`, which is what the
 bracket was standing in for.
 
+## Component 7 — Crawlability
+
+**Files:** new `src/lib/site.ts`, new `scripts/prerender.ts`, `package.json`,
+`.github/workflows/deploy.yml`, and a `<title>`/`<meta>` pair in each page component
+
+The site is a client-rendered SPA whose `index.html` carries no description and no
+Open Graph tags, and whose deploy copies that same shell to `404.html` so every route
+resolves to it. A crawler requesting the essay receives `<div id="root"></div>` and the
+title "Alex Barclay". Google will execute the JavaScript eventually and imperfectly;
+Bing, LinkedIn, Slack, X, Discord, and most AI crawlers will not. Every link to the
+essay, wherever it is posted, unfurls as a blank card.
+
+This is the highest-leverage traffic work available, it is a precondition for
+syndicating anywhere, and it is the reason a platform migration is unnecessary rather
+than merely premature. It ships with the essay.
+
+**Approach: generate static HTML per content route at build time.** The alternatives
+were an SSG framework migration (Astro — correct eventually, wrong this week) and a
+headless-browser crawl of the built site (a Playwright pass over `dist/`, which drags a
+browser into CI to recover HTML we can produce directly). Neither earns its cost when
+the content is markdown we already parse and the requirement is metadata plus readable
+text.
+
+**`src/lib/site.ts`** — one module of constants shared by the app and the script:
+canonical origin (`https://adbarc92.github.io`, base path `/`, since this is a GitHub
+user page), site title, author, default description, default social image.
+
+**`scripts/prerender.ts`**, run after `vite build`, using `fs` plus the shared
+`markdown.ts`:
+
+1. Read every file in `content/blog`, `content/projects`, and `content/eidos`, skipping
+   posts with `draft: true`.
+2. For each content route and each static route (`/`, `/blog`, `/projects`, `/about`,
+   `/eidos`), write `dist/<route>/index.html` — the built shell with a per-page
+   `<title>`, `<meta name="description">`, `<link rel="canonical">`, Open Graph tags
+   (`og:title`, `og:description`, `og:type`, `og:url`, `og:image`), and
+   `twitter:card`.
+3. Inject the rendered article HTML into `#root` in that file, so a client that never
+   executes JavaScript still receives the text.
+4. Emit `dist/rss.xml` from non-draft posts and `dist/sitemap.xml` from all public routes.
+5. Write `dist/404.html` from the bare shell, and delete the `cp index.html 404.html`
+   step from the workflow — the fallback belongs with the rest of the HTML generation,
+   and moving it makes `npm run preview` behave like production.
+
+Wired as `"build": "tsc -b && vite build && tsx scripts/prerender.ts"`, so there is no
+way to produce a deployable build without metadata.
+
+**Hydration is deliberately not attempted.** `main.tsx` calls `createRoot().render()`,
+which discards whatever is inside `#root` and renders fresh. The injected HTML is for
+crawlers; the browser throws it away microseconds later and draws the real app. Using
+`hydrateRoot` instead would demand that the script's output match React's exactly and
+would import the entire hydration-mismatch failure class for no reader-visible gain.
+The corollary worth stating: because the script never executes React, the Three.js gear
+background never runs under Node, which is what makes this approach cheap.
+
+**Client-side navigation** still needs correct head tags once the SPA takes over.
+React 19 hoists `<title>` and `<meta>` elements rendered anywhere in the tree, so each
+page component renders its own — no helmet library, no new dependency.
+
+**One new devDependency: `tsx`,** to run a TypeScript script that imports
+`src/lib/markdown.ts`. Node 22 could strip types natively, but CI pins Node 20 and the
+flag is experimental; `tsx` is the conventional answer and works on both.
+
 ---
 
 ## Verification
@@ -212,6 +286,22 @@ No test framework is configured, so verification is `npm run build` (which type-
 - A scratch post with `draft: true` appears in dev with its badge and is absent from
   `npm run build && npm run preview`, where its URL renders "Post not found".
 
+For Component 7, inspect the build output directly rather than the browser, since the
+whole point is what a non-executing client receives:
+
+- `dist/blog/eidos-an-architecture-for-cheap-code/index.html` contains the essay's title,
+  its excerpt as both description and `og:description`, a canonical URL, and the essay
+  body as text — verified by reading the file, not by viewing it.
+- Every content route and static route has its own directory and `index.html`, each with
+  a distinct title. No two pages share `<title>Alex Barclay</title>`.
+- The draft scratch post has no directory in `dist/`, no `rss.xml` entry, and no
+  `sitemap.xml` entry.
+- `rss.xml` parses as valid XML and its item count matches the number of published posts.
+- `dist/404.html` is the bare shell, and an unknown deep URL still boots the SPA under
+  `npm run preview`.
+- Client-side navigation between two posts changes `document.title`, confirming the
+  React 19 head hoisting works and has not been shadowed by the prerendered tags.
+
 ## Risks
 
 - **Category as a required field** breaks any post lacking it. Only one post exists and
@@ -219,3 +309,13 @@ No test framework is configured, so verification is `npm run build` (which type-
   runtime rather than at build. The deferred validation script is the answer if that
   ever happens twice.
 - **`draft` is obscurity, not privacy** — stated in full under Component 2.
+- **The prerender script duplicates routing knowledge.** It must know that a blog post
+  lives at `/blog/<slug>` while `App.tsx` declares the same fact independently, so adding
+  a route later means changing two files or shipping pages with no metadata. Accepted for
+  six routes; the honest fix is generating routes from a shared manifest, which is
+  Astro's Content Collections wearing a different hat and an argument for that migration
+  when it comes.
+- **Injected HTML is thrown away on every page load.** Harmless, but it means the
+  prerendered text can silently drift from what React renders — the script could emit
+  stale or wrong markup and no browser session would reveal it. Verification therefore
+  reads `dist/` directly rather than trusting the rendered page.
