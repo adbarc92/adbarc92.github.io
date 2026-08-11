@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { loadBlogPost, type ContentEntry, type BlogFrontmatter } from '../lib/content';
 import { formatDate } from '../lib/dates';
+import DraftBadge from '../components/DraftBadge';
 
 export default function BlogPost() {
   const { slug } = useParams<{ slug: string }>();
@@ -40,6 +41,7 @@ export default function BlogPost() {
       }}>
         &larr; Back to Blog
       </Link>
+      <DraftBadge draft={post.frontmatter.draft} marginBottom="0.75rem" />
       <time style={{ display: 'block', fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem' }}>
         {formatDate(post.frontmatter.date)}
       </time>
@@ -49,15 +51,19 @@ export default function BlogPost() {
       {post.frontmatter.tags.length > 0 && (
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
           {post.frontmatter.tags.map(tag => (
-            <span key={tag} style={{
-              fontSize: '0.75rem',
-              color: 'var(--color-accent)',
-              background: 'var(--color-accent-dim)',
-              padding: '0.15rem 0.5rem',
-              borderRadius: '3px',
-            }}>
+            <Link
+              key={tag}
+              to={`/blog?tag=${encodeURIComponent(tag)}`}
+              style={{
+                fontSize: '0.75rem',
+                color: 'var(--color-accent)',
+                background: 'var(--color-accent-dim)',
+                padding: '0.15rem 0.5rem',
+                borderRadius: '3px',
+              }}
+            >
               {tag}
-            </span>
+            </Link>
           ))}
         </div>
       )}

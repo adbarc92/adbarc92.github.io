@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { BlogFrontmatter } from '../lib/content';
 import { formatDate } from '../lib/dates';
+import DraftBadge from './DraftBadge';
 
 interface Props {
   slug: string;
@@ -29,6 +30,7 @@ export default function BlogCard({ slug, frontmatter }: Props) {
         e.currentTarget.style.borderColor = 'var(--color-gear-stroke)';
       }}
     >
+      <DraftBadge draft={frontmatter.draft} />
       <time style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', letterSpacing: '0.04em' }}>
         {formatDate(frontmatter.date)}
       </time>
