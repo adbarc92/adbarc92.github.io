@@ -1,0 +1,74 @@
+<!DOCTYPE html><html lang="en" data-astro-cid-deimkshs> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Eidos for Infrastructure — Alex Barclay</title><meta name="description" content="Where declarative tooling already separates Form from implementation, drift is the enemy, and six fitness functions buy an E2 estate in a weekend."><meta name="author" content="Alex Barclay"><link rel="canonical" href="https://alexanderdbarclay.com/writing/eidos/infrastructure"><meta property="og:type" content="article"><meta property="og:site_name" content="Alex Barclay"><meta property="og:title" content="Eidos for Infrastructure — Alex Barclay"><meta property="og:description" content="Where declarative tooling already separates Form from implementation, drift is the enemy, and six fitness functions buy an E2 estate in a weekend."><meta property="og:url" content="https://alexanderdbarclay.com/writing/eidos/infrastructure"><meta property="og:image" content="https://alexanderdbarclay.com/writing/images/og.png"><meta name="twitter:card" content="summary_large_image"><link rel="alternate" type="application/rss+xml" title="Alex Barclay" href="https://alexanderdbarclay.com/writing/rss.xml"><link rel="stylesheet" href="/_astro/about.BHsrFzJN.css">
+<style>.doc[data-astro-cid-dag3lpi6]{display:flex;flex-wrap:wrap;gap:3rem;align-items:flex-start}.sidebar[data-astro-cid-dag3lpi6]{flex:1 1 11rem;min-width:11rem;position:sticky;top:6rem}.sidebar__version[data-astro-cid-dag3lpi6]{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-muted)}.sidebar[data-astro-cid-dag3lpi6] ol[data-astro-cid-dag3lpi6]{list-style:none;margin-top:1rem;display:flex;flex-direction:column;gap:.6rem}.sidebar__link[data-astro-cid-dag3lpi6]{font-size:.85rem;line-height:1.4;color:var(--color-text-muted)}.sidebar__link[data-astro-cid-dag3lpi6][aria-current=page]{color:var(--color-accent)}.body[data-astro-cid-dag3lpi6]{flex:1 1 30rem;min-width:0}h1[data-astro-cid-dag3lpi6]{font-size:2rem;font-weight:700;margin-bottom:2rem}.pager[data-astro-cid-dag3lpi6]{display:flex;justify-content:space-between;gap:1rem;margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--color-gear-stroke);font-size:.85rem}
+</style></head> <body data-astro-cid-deimkshs> <nav class="writing-nav" data-astro-cid-deimkshs> <a href="/writing/" class="writing-nav__home" data-astro-cid-deimkshs>
+Alex Barclay
+</a> <div class="writing-nav__links" data-astro-cid-deimkshs> <a href="/writing/blog" class="writing-nav__link" data-astro-cid-deimkshs> Essays </a><a href="/writing/eidos" class="writing-nav__link" aria-current="page" data-astro-cid-deimkshs> Eidos </a><a href="/writing/projects" class="writing-nav__link" data-astro-cid-deimkshs> Projects </a><a href="/writing/about" class="writing-nav__link" data-astro-cid-deimkshs> About </a> </div> </nav> <main data-astro-cid-deimkshs>  <div class="page doc" style="--page-width: 60rem" data-astro-cid-dag3lpi6> <nav class="sidebar" data-astro-cid-dag3lpi6> <a class="sidebar__version" href="/writing/eidos" data-astro-cid-dag3lpi6>Eidos v0.2</a> <ol data-astro-cid-dag3lpi6> <li data-astro-cid-dag3lpi6> <a href="/writing/eidos/architecture" class="sidebar__link" data-astro-cid-dag3lpi6> Eidos Architecture </a> </li><li data-astro-cid-dag3lpi6> <a href="/writing/eidos/adoption" class="sidebar__link" data-astro-cid-dag3lpi6> Adopting Eidos </a> </li><li data-astro-cid-dag3lpi6> <a href="/writing/eidos/form-template" class="sidebar__link" data-astro-cid-dag3lpi6> Form Template &amp; Gate Registry </a> </li><li data-astro-cid-dag3lpi6> <a href="/writing/eidos/infrastructure" class="sidebar__link" aria-current="page" data-astro-cid-dag3lpi6> Eidos for Infrastructure </a> </li> </ol> </nav> <div class="body" data-astro-cid-dag3lpi6> <h1 data-astro-cid-dag3lpi6>Eidos for Infrastructure</h1> <article class="prose" data-astro-cid-dag3lpi6> <h2 id="why-infrastructure-is-eidoss-home-turf">Why infrastructure is Eidos’s home turf</h2>
+<p>Infrastructure has the best natural fitness-function story of any domain: declarative tools already separate Form from implementation. A Terraform config, a Docker Compose file, an Ansible playbook, a NixOS config — each <em>is</em> a Form, and <code>plan</code>/<code>diff</code>/<code>validate</code> <em>is</em> a fitness function. The philosophy doesn’t need to be imported into infra; it needs to be made explicit and completed, because infra also has the worst failure mode: <strong>drift</strong> — reality silently diverging from the declared Form until the declaration is fiction.</p>
+<p>The Eidos statement for infrastructure: <strong>the declared state is the Form; the running system is the implementation; drift detection is the fitness function; and an agent may reshape the running system freely so long as the Form is satisfied.</strong></p>
+<h2 id="the-three-commitments-translated">The three commitments, translated</h2>
+<h3 id="maximal-convention">Maximal Convention</h3>
+<ul>
+<li>Prefer the tool the corpus knows: Docker Compose over bespoke shell orchestration, Terraform/OpenTofu over hand-rolled provisioning scripts, standard Tailscale ACL syntax over custom VPN glue. An agent has seen a million Compose files; it has seen zero copies of your custom <code>deploy.sh</code>.</li>
+<li>One repo (or one clearly-bounded directory) that declares everything. Scattered per-machine configs are prose-in-heads with extra steps.</li>
+</ul>
+<h3 id="mechanical-enforcement">Mechanical Enforcement</h3>
+<ul>
+<li><strong>Validation gates (pre-apply):</strong> <code>terraform validate</code> + policy-as-code (OPA/Conftest, Sentinel), <code>docker compose config</code>, lint on every declarative file. These run in CI and in hooks, and they block.</li>
+<li><strong>Drift gates (post-apply, the important ones):</strong> scheduled <code>terraform plan -detailed-exitcode</code>, container state vs. compose file comparison, config-file checksums on hosts. Drift detection that only reports is a warning; the Eidos-conformant version <em>fails a scheduled CI job</em> and creates work that cannot be ignored.</li>
+<li><strong>Invariant gates:</strong> scripted assertions of the invariants that matter — “only ports X,Y exposed beyond the tailnet,” “every service has a healthcheck,” “backups restored successfully within N days.” Each is a cron-driven check that goes red, not a wiki page.</li>
+</ul>
+<h3 id="human-designed-seams">Human-Designed Seams</h3>
+<p>The Forms worth authoring for a small infra estate are few:</p>
+<ol>
+<li><strong>Network Form</strong> — the topology: what is on the tailnet, what is exposed, ACLs as the interface. Invariants like “no service reachable from WAN except through the reverse proxy.” Gate: an external port-scan assertion plus ACL file linting.</li>
+<li><strong>Service Form (one per service class, not per service)</strong> — what every deployed service must provide: healthcheck, resource limits, restart policy, log destination, backup annotation. Gate: a Compose/K8s manifest linter that rejects nonconforming services.</li>
+<li><strong>Data Form</strong> — what is stateful, where it lives, how it’s backed up, restore SLO. Gate: automated restore drills on a schedule; a backup that has never been restored is Unenforced debt.</li>
+<li><strong>Secrets Form</strong> — where secrets live and the invariant that they appear nowhere else. Gate: secret-scanning in CI and on the hosts.</li>
+</ol>
+<p>Everything else — which container image, which internal wiring, how a service is implemented — is implementation. Delete and regenerate freely.</p>
+<h2 id="the-regenerability-drill-infra-edition">The regenerability drill, infra edition</h2>
+<p>The E3 acid test translates directly and is <em>more</em> achievable in infra than in application code: <strong>can an agent rebuild a machine from the repo alone?</strong> Pick one host, wipe it (or provision a fresh VM), hand the agent the Forms, and see if the estate converges with all gates green. Every manual step you perform during recovery is an undocumented Form — write it down or automate it, then re-run.</p>
+<p>For a multi-machine tailnet lab, the drill order is: least-critical node first, then one node per month. A home lab that survives node-wipe drills is, structurally, better run than most production estates.</p>
+<h2 id="starter-gate-set-first-week">Starter gate set (first week)</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Gate</th><th>Mechanism</th><th>Blocks</th></tr></thead><tbody><tr><td>Declarative files valid</td><td>terraform validate / compose config / yamllint in CI + pre-commit hook</td><td>commit, merge</td></tr><tr><td>No secrets in repo</td><td>gitleaks or trufflehog in CI + hook</td><td>commit, merge</td></tr><tr><td>No drift</td><td>scheduled plan/diff job, non-zero exit on drift</td><td>scheduled job goes red</td></tr><tr><td>Exposure invariant</td><td>external scan asserting only declared ports respond</td><td>scheduled job goes red</td></tr><tr><td>Service conformance</td><td>manifest linter enforcing the Service Form</td><td>merge</td></tr><tr><td>Restores work</td><td>scheduled restore drill of one datastore</td><td>scheduled job goes red</td></tr></tbody></table>
+<p>Six fitness functions, all deterministic, all blocking. That is E2 for an infrastructure estate, and it is roughly one weekend of work.</p> </article> <div class="pager" data-astro-cid-dag3lpi6> <span data-astro-cid-dag3lpi6><a href="/writing/eidos/form-template" data-astro-cid-dag3lpi6>&larr; Form Template &amp; Gate Registry</a></span> <span data-astro-cid-dag3lpi6></span> </div> </div> </div>  </main> </body></html> 

@@ -1,0 +1,51 @@
+<!DOCTYPE html><html lang="en" data-astro-cid-deimkshs> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Adopting Eidos — Alex Barclay</title><meta name="description" content="The playbook for existing projects: assessment, a first gate, forming the load-bearing modules, regenerability drills, and the anti-patterns that undo all four."><meta name="author" content="Alex Barclay"><link rel="canonical" href="https://alexanderdbarclay.com/writing/eidos/adoption"><meta property="og:type" content="article"><meta property="og:site_name" content="Alex Barclay"><meta property="og:title" content="Adopting Eidos — Alex Barclay"><meta property="og:description" content="The playbook for existing projects: assessment, a first gate, forming the load-bearing modules, regenerability drills, and the anti-patterns that undo all four."><meta property="og:url" content="https://alexanderdbarclay.com/writing/eidos/adoption"><meta property="og:image" content="https://alexanderdbarclay.com/writing/images/og.png"><meta name="twitter:card" content="summary_large_image"><link rel="alternate" type="application/rss+xml" title="Alex Barclay" href="https://alexanderdbarclay.com/writing/rss.xml"><link rel="stylesheet" href="/_astro/about.BHsrFzJN.css">
+<style>.doc[data-astro-cid-dag3lpi6]{display:flex;flex-wrap:wrap;gap:3rem;align-items:flex-start}.sidebar[data-astro-cid-dag3lpi6]{flex:1 1 11rem;min-width:11rem;position:sticky;top:6rem}.sidebar__version[data-astro-cid-dag3lpi6]{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-muted)}.sidebar[data-astro-cid-dag3lpi6] ol[data-astro-cid-dag3lpi6]{list-style:none;margin-top:1rem;display:flex;flex-direction:column;gap:.6rem}.sidebar__link[data-astro-cid-dag3lpi6]{font-size:.85rem;line-height:1.4;color:var(--color-text-muted)}.sidebar__link[data-astro-cid-dag3lpi6][aria-current=page]{color:var(--color-accent)}.body[data-astro-cid-dag3lpi6]{flex:1 1 30rem;min-width:0}h1[data-astro-cid-dag3lpi6]{font-size:2rem;font-weight:700;margin-bottom:2rem}.pager[data-astro-cid-dag3lpi6]{display:flex;justify-content:space-between;gap:1rem;margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--color-gear-stroke);font-size:.85rem}
+</style></head> <body data-astro-cid-deimkshs> <nav class="writing-nav" data-astro-cid-deimkshs> <a href="/writing/" class="writing-nav__home" data-astro-cid-deimkshs>
+Alex Barclay
+</a> <div class="writing-nav__links" data-astro-cid-deimkshs> <a href="/writing/blog" class="writing-nav__link" data-astro-cid-deimkshs> Essays </a><a href="/writing/eidos" class="writing-nav__link" aria-current="page" data-astro-cid-deimkshs> Eidos </a><a href="/writing/projects" class="writing-nav__link" data-astro-cid-deimkshs> Projects </a><a href="/writing/about" class="writing-nav__link" data-astro-cid-deimkshs> About </a> </div> </nav> <main data-astro-cid-deimkshs>  <div class="page doc" style="--page-width: 60rem" data-astro-cid-dag3lpi6> <nav class="sidebar" data-astro-cid-dag3lpi6> <a class="sidebar__version" href="/writing/eidos" data-astro-cid-dag3lpi6>Eidos v0.2</a> <ol data-astro-cid-dag3lpi6> <li data-astro-cid-dag3lpi6> <a href="/writing/eidos/architecture" class="sidebar__link" data-astro-cid-dag3lpi6> Eidos Architecture </a> </li><li data-astro-cid-dag3lpi6> <a href="/writing/eidos/adoption" class="sidebar__link" aria-current="page" data-astro-cid-dag3lpi6> Adopting Eidos </a> </li><li data-astro-cid-dag3lpi6> <a href="/writing/eidos/form-template" class="sidebar__link" data-astro-cid-dag3lpi6> Form Template &amp; Gate Registry </a> </li><li data-astro-cid-dag3lpi6> <a href="/writing/eidos/infrastructure" class="sidebar__link" data-astro-cid-dag3lpi6> Eidos for Infrastructure </a> </li> </ol> </nav> <div class="body" data-astro-cid-dag3lpi6> <h1 data-astro-cid-dag3lpi6>Adopting Eidos</h1> <article class="prose" data-astro-cid-dag3lpi6> <h2 id="the-order-of-operations">The order of operations</h2>
+<p>Adoption is incremental and always in the same order: <strong>find the seams — write the Forms — build the fitness functions — then, and only then, delegate the implementations.</strong> Teams fail by inverting this — delegating heavily to agents first, then discovering their architecture was prose all along.</p>
+<h2 id="phase-0--assessment-one-session-per-repo">Phase 0 — Assessment (one session per repo)</h2>
+<p>Answer these in writing; the answers become the seed of the Form registry.</p>
+<ol>
+<li><strong>What is already conventional?</strong> List everything the framework or ecosystem already decided (folder layout, naming, DI, routing). These are inherited Forms — free, already enforced by the framework. Do not re-document them; reference them.</li>
+<li><strong>What is load-bearing and bespoke?</strong> List the modules where a wrong change is expensive: money movement, auth, state machines, published APIs, data migrations. These need authored Forms first.</li>
+<li><strong>What rules currently live in prose or heads?</strong> Every “we always…” or “never…” a maintainer would say in review. Each is either promoted to a fitness function or deliberately dropped. There is no third state.</li>
+<li><strong>What is the current conformance level?</strong> Almost every repo starts at E0 or E1. Be honest; the level is a measurement.</li>
+</ol>
+<h2 id="phase-1--first-gate-target-e1-one-day">Phase 1 — First gate (target: E1, one day)</h2>
+<p>Ship one deterministic architectural gate before writing any Form documents. This proves the enforcement channel works and establishes the pattern.</p>
+<p>Good first fitness functions, by ecosystem:</p>
+<ul>
+<li><strong>Dependency direction:</strong> dependency-cruiser (JS/TS), import-linter (Python), ArchUnit (JVM), a SwiftLint custom rule or a build-graph assertion (iOS).</li>
+<li><strong>Boundary visibility:</strong> package/module access modifiers enforced in CI; Bazel-style visibility if the build system supports it.</li>
+<li><strong>Doc-code parity:</strong> a staleness audit that fails CI when a Form’s interface drifts from its document (Atlas’s <code>audit_staleness.py</code> pattern generalizes here).</li>
+</ul>
+<p>The gate must <strong>block</strong>, not warn. Wire it into CI and, where the execution environment supports it, into hooks so agents hit the wall locally before CI does.</p>
+<h2 id="phase-2--form-the-load-bearing-modules-target-e2">Phase 2 — Form the load-bearing modules (target: E2)</h2>
+<p>For each module from Assessment item 2, in risk order:</p>
+<ol>
+<li>Write its Form using the <a href="/writing/eidos/form-template">Form template</a>: interface, invariants, hidden decisions, gates.</li>
+<li>For every invariant, either build a fitness function or write down why one is impossible. “Impossible” should be rare and embarrassing.</li>
+<li>Lock the boundary with tests at the interface — behavior tests an agent cannot game by editing internals.</li>
+<li>Register the Form in <code>forms/registry.md</code> and add a CI check that every registered gate actually exists and runs (registry ↔ enforcement parity).</li>
+</ol>
+<p>Do not Form everything. Implementations that are cheap to regenerate and low-blast-radius (view code, scripts, glue) stay unformed on purpose. Over-Forming is Clean Architecture ceremony returning through the back door.</p>
+<h2 id="phase-3--regenerability-drills-target-e3">Phase 3 — Regenerability drills (target: E3)</h2>
+<p>Pick one Formed module per month and run the acid test: delete its implementation, hand an agent the Form and the tests, and see whether the regenerated implementation passes every gate without human authorship.</p>
+<p>Every failure is a defect in the Form, not the agent: an undocumented invariant, an interface leaking hidden decisions, a missing fitness function. Fix the Form, re-run. A module that survives the drill is E3; a system whose load-bearing modules all survive is done adopting and starts compounding.</p>
+<h2 id="anti-patterns">Anti-patterns</h2>
+<ul>
+<li><strong>Prose promotion theater.</strong> Writing beautiful Form documents with no fitness functions behind them. That’s E0 with better typography.</li>
+<li><strong>Warning-level rules.</strong> A warning is a gate that has already decided to lose.</li>
+<li><strong>Forming the volatile edge.</strong> UI experiments and prototypes churn too fast to Form. Form the seams <em>around</em> them instead.</li>
+<li><strong>Agent-authored Forms.</strong> Agents may draft, but a human owns every Form decision. Delegating seam design to the entity that will be constrained by it defeats the design.</li>
+<li><strong>Registry drift.</strong> A registry that claims gates that no longer run is worse than no registry — it teaches agents the documents lie. The parity check is itself a mandatory gate.</li>
+</ul>
+<h2 id="sequencing-across-a-portfolio">Sequencing across a portfolio</h2>
+<p>For a multi-project portfolio, adopt in this order:</p>
+<ol>
+<li><strong>The pipeline projects first</strong> (anything that itself runs agents — requirements-to-code pipelines, orchestration platforms). These multiply every downstream benefit and every downstream defect.</li>
+<li><strong>Infrastructure second</strong> (see <a href="/writing/eidos/infrastructure">Eidos for Infrastructure</a>) — infra has the best natural fitness-function story of any domain and the worst consequences for drift.</li>
+<li><strong>Product codebases third</strong>, load-bearing modules first within each.</li>
+<li><strong>Prototypes and experiments never</strong>, beyond inheriting the portfolio’s shared gates.</li>
+</ol> </article> <div class="pager" data-astro-cid-dag3lpi6> <span data-astro-cid-dag3lpi6><a href="/writing/eidos/architecture" data-astro-cid-dag3lpi6>&larr; Eidos Architecture</a></span> <span data-astro-cid-dag3lpi6><a href="/writing/eidos/form-template" data-astro-cid-dag3lpi6>Form Template &amp; Gate Registry &rarr;</a></span> </div> </div> </div>  </main> </body></html> 
