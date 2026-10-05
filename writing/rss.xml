@@ -13,12 +13,5 @@
       <pubDate>Mon, 10 Aug 2026 00:00:00 GMT</pubDate>
       <description>For fifty years, software architecture has argued about where the boundaries should go, on the shared premise that a human&apos;s attention is the scarce resource. That premise no longer holds.</description>
     </item>
-    <item>
-      <title>Hello World</title>
-      <link>https://alexanderdbarclay.com/writing/hello-world</link>
-      <guid isPermaLink="false">https://alexanderdbarclay.com/writing/blog/hello-world</guid>
-      <pubDate>Fri, 27 Feb 2026 00:00:00 GMT</pubDate>
-      <description>The first post on my new portfolio site.</description>
-    </item>
   </channel>
 </rss>
